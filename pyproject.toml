@@ -1,0 +1,46 @@
+[project]
+name = "crmtovoice"
+version = "0.1.0"
+authors = [
+    { name = "ricardoo022", email = "ricardodomingues.166@gmail.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.139.0",
+    "langchain>=1.0,<2.0",
+    "langchain-core>=1.0,<2.0",
+    "langchain-openai>=1.3.5",
+    "langgraph>=1.0,<2.0",
+    "langgraph-checkpoint-sqlite>=3.1.0",
+    "langsmith>=0.3.0",
+    "pyairtable>=3.4.0",
+    "uvicorn>=0.51.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/crmToVoice"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "ruff>=0.15.21",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.10"
+venvPath = "."
+venv = ".venv"

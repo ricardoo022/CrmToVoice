@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Typecheck
+        run: uv run pyright
+
+      - name: Test
+        run: |
+          uv run pytest
+          ec=$?
+          # exit code 5 = "no tests collected" — not a failure while the codebase
+          # is still scaffolding; remove this once real tests exist.
+          if [ $ec -ne 0 ] && [ $ec -ne 5 ]; then exit $ec; fi
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build langgraph image
+        run: docker build -f Dockerfile.langgraph -t crmtovoice-langgraph:ci .
+
+      - name: Build webhook image
+        run: docker build -f Dockerfile.webhook -t crmtovoice-webhook:ci .

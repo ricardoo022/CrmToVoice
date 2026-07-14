@@ -1,0 +1,27 @@
+services:
+  graph:
+    build:
+      context: .
+      dockerfile: Dockerfile.langgraph
+    ports:
+      - "2024:2024"
+    volumes:
+      - ./src:/app/src
+      - ./db:/app/db
+    env_file:
+      - .env
+
+  webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile.webhook
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+    environment:
+      - LANGGRAPH_API_URL=http://graph:2024
+    env_file:
+      - .env
+    depends_on:
+      - graph
