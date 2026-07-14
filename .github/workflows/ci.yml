@@ -24,8 +24,10 @@ jobs:
 
       - name: Test
         run: |
+          set +e
           uv run pytest
           ec=$?
+          set -e
           # exit code 5 = "no tests collected" — not a failure while the codebase
           # is still scaffolding; remove this once real tests exist.
           if [ $ec -ne 0 ] && [ $ec -ne 5 ]; then exit $ec; fi
