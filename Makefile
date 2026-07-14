@@ -20,8 +20,13 @@ dev: ## Inicia LangGraph Studio (desenvolvimento de agentes)
 
 ##@ Qualidade
 
-test: ## Corre os testes
-	uv run pytest
+test: test-unit test-integration ## Corre todos os testes
+
+test-unit: ## Corre os testes unitários
+	uv run pytest tests/unit
+
+test-integration: ## Corre os testes de integração (precisa de credenciais reais)
+	uv run pytest tests/integration
 
 lint: ## Verifica o código com ruff
 	uv run ruff check .
@@ -39,4 +44,4 @@ check: lint typecheck test ## Corre lint + typecheck + testes
 clean: ## Remove o .venv
 	rm -rf .venv
 
-.PHONY: help setup dev test lint format typecheck check clean
+.PHONY: help setup dev test test-unit test-integration lint format typecheck check clean
