@@ -1,0 +1,7 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "crmAgent": "./src/crmToVoice/graph.py:graph"
+  },
+  "env": ".env"
+}
