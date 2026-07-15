@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-The design is complete and the project is scaffolded (dependencies, folder architecture, Docker, CI), but **no implementation code exists yet** — `src/crmToVoice/` is a tree of empty directories, each with a `README.md` describing what belongs there. The design docs under `docs/` are authoritative and should be read before writing any code:
+The design is complete and the project is scaffolded (dependencies, folder architecture, Docker, CI). **Epic 01 (Base de Dados) is implemented** — `src/crmToVoice/airtable/` (`client.py`, `leads.py`, `imoveis.py`, `visitas.py`), with unit tests in `tests/unit/airtable/` and integration tests (real Airtable) in `tests/integration/airtable/`; see `docs/backlog/epics/epic-01-database.md`. Epic 02 (Agente) and Epic 03 (Webhook) are **not built yet** — the rest of `src/crmToVoice/` (`agents/`, `webhook.py`) is still a tree of empty directories, each with a `README.md` describing what belongs there. The design docs under `docs/` are authoritative and should be read before writing any code:
 
 - `docs/CRM.md` — Airtable data model (Leads, Imóveis, Visitas tables, field lists) and the full catalog of voice-driven CRM actions (Criar/Ler/Atualizar/Apagar), including the field-classification rules (which fields are auto-filled vs. asked-if-missing) and the guided-wizard question mechanics.
 - `docs/Agent.md` — the LangGraph agent design: session/memory model, the middleware/agent layering, the shared `AgentState`, the two-router four-path graph (Criar/Ler/Atualizar/Apagar), the `interrupt()`-based pause/resume mechanism, error/fallback handling, a node-to-file mapping (§9), and a Mermaid diagram of the full graph.
