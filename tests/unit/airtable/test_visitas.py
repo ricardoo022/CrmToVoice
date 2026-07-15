@@ -131,3 +131,16 @@ def test_list_visitas_by_lead_filters_by_membership_and_sorts_by_date():
     mock_get_table.assert_called_once_with("Visitas")
     fake_table.all.assert_called_once_with()
     assert [r["id"] for r in result] == ["recEarlier", "recLater"]
+
+
+def test_list_visitas_by_lead_does_not_crash_when_data_field_is_missing():
+    fake_table = MagicMock()
+    fake_table.all.return_value = [
+        {"id": "recDated", "fields": {"Lead": ["recLead1"], "Data": "2026-07-16T10:00:00.000Z"}},
+        {"id": "recNoData", "fields": {"Lead": ["recLead1"]}},
+    ]
+
+    with patch.object(visitas, "get_table", return_value=fake_table):
+        result = visitas.list_visitas_by_lead("recLead1")
+
+    assert {r["id"] for r in result} == {"recDated", "recNoData"}

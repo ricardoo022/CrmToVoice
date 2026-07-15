@@ -40,4 +40,8 @@ def list_visitas_by_lead(lead_record_id: str) -> list[RecordDict]:
     # not its record ID, so exact-ID filtering has to happen client-side.
     records = get_table("Visitas").all()
     matching = [r for r in records if lead_record_id in r["fields"].get("Lead", [])]
-    return sorted(matching, key=lambda r: r["fields"]["Data"])
+    # Airtable omits a field from the response entirely when it has no value,
+    # so a Visita with no Data yet (e.g. create_visita called without it —
+    # Data isn't auto-filled at this layer, that's Epic 02's job) must not
+    # crash the sort; treat it as sorting first, ahead of any known date.
+    return sorted(matching, key=lambda r: r["fields"].get("Data", ""))
