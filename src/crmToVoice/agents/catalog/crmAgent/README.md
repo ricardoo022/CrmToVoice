@@ -1,8 +1,10 @@
 # crmAgent
 
-The four intent paths (`docs/Agent.md` §5):
+The four intent paths (`docs/Agent.md` §5). None of these files exist yet (Epic 02+, not built).
 
-- `criar.py` — the only path with the missing-field wizard
-- `ler.py` — read-only, never writes
-- `atualizar.py` — direct field updates, except changing `Estado` (asks "porquê?" first)
-- `apagar.py` — always requires explicit confirmation before deleting
+| File (planned) | Purpose |
+|---|---|
+| `create.py` | Create path — the only one with the missing-field wizard. |
+| `read.py` | Read path — read-only, never writes. |
+| `update.py` | Update path — direct field updates, except changing `Estado`/Status (asks "why?" first and logs a Visit). |
+| `delete.py` | Delete path — always requires explicit voice confirmation before deleting. |

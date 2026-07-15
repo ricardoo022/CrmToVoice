@@ -5,6 +5,7 @@ import requests
 
 from crmToVoice.airtable import leads
 from crmToVoice.airtable.client import get_table
+from crmToVoice.models import LeadFields
 
 
 def _unique_name(prefix: str) -> str:
@@ -81,3 +82,17 @@ def test_get_lead_expands_linked_visita(cleanup):
 
     assert len(fetched["visitas"]) == 1
     assert fetched["visitas"][0]["id"] == visita["id"]
+
+
+def test_create_lead_accepts_lead_fields_dump_by_alias(cleanup):
+    payload = LeadFields(
+        nome=_unique_name("US-AG-01 Contract"),
+        telefone="912345678",
+        orcamento=250000,
+    ).model_dump(by_alias=True, exclude_none=True)
+
+    created = leads.create_lead(payload)
+    cleanup("Leads", created["id"])
+
+    assert created["fields"]["Nome"] == payload["Nome"]
+    assert created["fields"]["Orçamento"] == 250000

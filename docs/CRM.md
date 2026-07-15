@@ -1,155 +1,202 @@
-# CRM Imobiliário (Voz) — Documentação
+# Real Estate CRM (Voice) — Documentation
 
-Base Airtable: **CRM Imobiliário (Voz)** (workspace "Porjeto")
+Airtable base: **CRM Imobiliário (Voz)** (workspace "Porjeto")
 Base ID: `appiFiRN7rzTMqyff`
 
-Objetivo: eliminar a fricção de registar visitas/interações manualmente. O agente imobiliário dita a nota ("Ei Siri, regista visita...") e o sistema estrutura a informação e escreve-a diretamente no CRM. A interação é **bidirecional**: para perguntas (ex: "que visitas tenho hoje?"), o Siri lê a resposta em voz alta.
+> The base itself, and its table/field names, are in Portuguese because
+> that's the literal, real Airtable schema — renaming them here without
+> renaming the live base would make this doc inaccurate (see
+> `docs/folder-structure.md`). Everywhere below, the Airtable name is given
+> first with an English gloss in parentheses. Example voice interactions
+> are translated to English for readability; the actual product speaks
+> Portuguese to the agent, per `README.md`.
+
+Goal: eliminate the friction of manually logging visits/interactions. The
+real estate agent dictates the note ("Hey Siri, log visit...") and the
+system structures the information and writes it directly to the CRM. The
+interaction is **bidirectional**: for questions (e.g. "what visits do I
+have today?"), Siri reads the answer out loud.
 
 ---
 
-## 1. Estrutura das Tabelas
+## 1. Table structure
 
 ### 1.1 Leads
-Pessoas interessadas em comprar/vender/arrendar imóveis.
+People interested in buying/selling/renting properties.
 
-| Campo | Tipo | Pergunta se faltar? |
+| Field (Airtable name) | Type | Asked if missing? |
 |---|---|---|
-| Nome | Texto (campo primário) | Sim |
-| Telefone | Telefone | Sim |
-| Email | Email | Sim |
-| Estado | Seleção única — Novo → Contactado → Qualificado → Em Negociação → Fechado / Perdido | Não — automático (default "Novo") |
-| Tipo de Imóvel Procurado | Seleção única — Apartamento, Moradia, Terreno, Escritório, Outro | Sim |
-| Orçamento | Moeda (€) | Sim |
-| Origem | Seleção única — Referência, Portal Imobiliário, Redes Sociais, Walk-in, Outro | Sim |
-| Sentimento | Seleção única — Positivo, Neutro, Negativo (última interação) | Não — inferido pelo agente |
-| Próximo Passo | Texto | Sim |
-| Data Última Interação | Data | Não — automático (agora) |
-| Visitas *(automático)* | Ligação — todas as Visitas associadas a este lead | — |
+| Nome (*Name*) | Text (primary field) | Yes |
+| Telefone (*Phone*) | Phone | Yes |
+| Email | Email | Yes |
+| Estado (*Status*) | Single select — Novo (*New*) → Contactado (*Contacted*) → Qualificado (*Qualified*) → Em Negociação (*In Negotiation*) → Fechado (*Closed*) / Perdido (*Lost*) | No — automatic (default "Novo"/New) |
+| Tipo de Imóvel Procurado (*Property Type Sought*) | Single select — Apartamento (*Apartment*), Moradia (*House*), Terreno (*Land*), Escritório (*Office*), Outro (*Other*) | Yes |
+| Orçamento (*Budget*) | Currency (€) | Yes |
+| Origem (*Source*) | Single select — Referência (*Referral*), Portal Imobiliário (*Real Estate Portal*), Redes Sociais (*Social Media*), Walk-in, Outro (*Other*) | Yes |
+| Sentimento (*Sentiment*) | Single select — Positivo (*Positive*), Neutro (*Neutral*), Negativo (*Negative*) (last interaction) | No — inferred by the agent |
+| Próximo Passo (*Next Step*) | Text | Yes |
+| Data Última Interação (*Last Interaction Date*) | Date | No — automatic (now) |
+| Visitas (*Visits*, automatic) | Link — every Visita linked to this lead | — |
 
-### 1.2 Imóveis
-Imóveis geridos pelo agente.
+### 1.2 Imóveis (Properties)
+Properties managed by the agent.
 
-| Campo | Tipo | Pergunta se faltar? |
+| Field (Airtable name) | Type | Asked if missing? |
 |---|---|---|
-| Morada | Texto (campo primário) | Sim |
-| Tipo | Seleção única — Apartamento, Moradia, Terreno, Escritório, Outro | Sim |
-| Preço | Moeda (€) | Sim |
-| Estado | Seleção única — Disponível, Reservado, Vendido | Não — automático (default "Disponível") |
-| Visitas *(automático)* | Ligação — todas as Visitas associadas a este imóvel | — |
+| Morada (*Address*) | Text (primary field) | Yes |
+| Tipo (*Type*) | Single select — Apartamento (*Apartment*), Moradia (*House*), Terreno (*Land*), Escritório (*Office*), Outro (*Other*) | Yes |
+| Preço (*Price*) | Currency (€) | Yes |
+| Estado (*Status*) | Single select — Disponível (*Available*), Reservado (*Reserved*), Vendido (*Sold*) | No — automatic (default "Disponível"/Available) |
+| Visitas (*Visits*, automatic) | Link — every Visita linked to this property | — |
 
-### 1.3 Visitas
-Registo de visitas/interações — alimentado por voz via Siri Shortcut. É o núcleo do sistema.
+### 1.3 Visitas (Visits)
+Log of visits/interactions — fed by voice via the Siri Shortcut. The core
+of the system.
 
-| Campo | Tipo | Pergunta se faltar? |
+| Field (Airtable name) | Type | Asked if missing? |
 |---|---|---|
-| Título | Texto (campo primário, ex: "Visita — João Silva — 14/07") | Não — gerado pelo agente |
-| Tipo | Seleção única — Visita, Chamada, Mensagem, Reunião | Não — automático (default "Visita") |
-| Data | Data e hora | Não — automático (agora) |
-| Resumo | Texto longo, gerado a partir da nota de voz | Sim |
-| Sentimento | Seleção única — Positivo, Neutro, Negativo | Não — inferido pelo agente |
-| Próximos Passos | Texto longo | Sim |
-| Lead | Ligação → Leads | Sim (identificar ou criar) |
-| Imóvel | Ligação → Imóveis | Sim |
+| Título (*Title*) | Text (primary field, e.g. "Visita — João Silva — 14/07") | No — generated by the agent |
+| Tipo (*Type*) | Single select — Visita (*Visit*), Chamada (*Call*), Mensagem (*Message*), Reunião (*Meeting*) | No — automatic (default "Visita"/Visit) |
+| Data (*Date*) | Date & time | No — automatic (now) |
+| Resumo (*Summary*) | Long text, generated from the voice note | Yes |
+| Sentimento (*Sentiment*) | Single select — Positivo (*Positive*), Neutro (*Neutral*), Negativo (*Negative*) | No — inferred by the agent |
+| Próximos Passos (*Next Steps*) | Long text | Yes |
+| Lead | Link → Leads | Yes (identify or create) |
+| Imóvel (*Property*) | Link → Imóveis | Yes |
 
 ---
 
-## 2. Ações que a pessoa pode fazer por voz
+## 2. Actions a person can trigger by voice
 
-Estas são as intenções (intents) que o agente em LangGraph terá de reconhecer a partir da fala e traduzir em operações no CRM.
+These are the intents the LangGraph agent must recognize from speech and
+translate into CRM operations.
 
-### Criar
+### Create
 
-**2.1 Registar visita/interação** (ação principal)
-> "Ei Siri, regista visita. Estive com o João Silva no apartamento da Rua X, ele gostou mas achou caro, vou enviar proposta amanhã."
-- Verifica se o **Lead** já existe → associa; senão, cria lead novo.
-- Verifica se o **Imóvel** mencionado existe → associa se identificado.
-- Cria registo em **Visitas** com o que for extraído da fala; pergunta pelos campos em falta que exigem pergunta (ver tabela acima e mecanismo do wizard, secção 4).
-- Atualiza **Data Última Interação** e **Sentimento** no Lead.
+**2.1 Log a visit/interaction** (main action)
+> "Hey Siri, log visit. I was with João Silva at the apartment on Main
+> Street, he liked it but thought it was expensive, I'll send a proposal
+> tomorrow."
+- Checks whether the **Lead** already exists → links it; otherwise,
+  creates a new lead.
+- Checks whether the mentioned **Property** exists → links it if
+  identified.
+- Creates a record in **Visitas** with whatever was extracted from speech;
+  asks for missing fields that require a question (see table above and
+  the wizard mechanism, section 4).
+- Updates **Last Interaction Date** and **Sentiment** on the Lead.
 
-**2.2 Criar lead novo**
-> "Ei Siri, novo lead. Maria Costa, quer um T2 até 250 mil, contacto por indicação da Ana."
-- Cria registo em **Leads** com o que for extraído; segue o wizard para os campos em falta.
+**2.2 Create a new lead**
+> "Hey Siri, new lead. Maria Costa, wants a 2-bedroom under 250k, contact
+> via referral from Ana."
+- Creates a record in **Leads** with whatever was extracted; follows the
+  wizard for missing fields.
 
-**2.5 Registar chamada ou mensagem** (variante da 2.1)
-> "Ei Siri, liguei ao João, ainda está a pensar."
-- Mesmo fluxo da 2.1, mas Tipo = "Chamada" ou "Mensagem".
+**2.5 Log a call or message** (variant of 2.1)
+> "Hey Siri, called João, he's still thinking it over."
+- Same flow as 2.1, but Type = "Chamada" (Call) or "Mensagem" (Message).
 
-**2.6 Adicionar imóvel** *(gestão de carteira — opcional)*
-> "Ei Siri, novo imóvel. Apartamento na Rua X, T3, 320 mil, disponível."
-- Cria registo em **Imóveis**; segue o wizard para os campos em falta.
+**2.6 Add a property** *(portfolio management — optional)*
+> "Hey Siri, new property. Apartment on Main Street, 3-bedroom, 320k,
+> available."
+- Creates a record in **Imóveis**; follows the wizard for missing fields.
 
-### Ler / Perguntar (Siri responde por voz)
+### Read / Ask (Siri answers out loud)
 
-**2.8 Consultar agenda/visitas**
-> "Ei Siri, que visitas tenho hoje?" → *"Tens 2 visitas hoje: João às 15h e Maria às 17h."*
+**2.8 Check schedule/visits**
+> "Hey Siri, what visits do I have today?" → *"You have 2 visits today:
+> João at 3pm and Maria at 5pm."*
 
-**2.9 Consultar estado de um lead**
-> "Ei Siri, qual é o estado do João?" → *"O João está em negociação, último contacto há 3 dias."*
+**2.9 Check a lead's status**
+> "Hey Siri, what's João's status?" → *"João is in negotiation, last
+> contact 3 days ago."*
 
-**2.10 Consultar métricas**
-> "Ei Siri, quantos leads tenho em negociação?" → *"Tens 5 leads em negociação."*
+**2.10 Check metrics**
+> "Hey Siri, how many leads do I have in negotiation?" → *"You have 5
+> leads in negotiation."*
 
-**2.11 Consultar próximo passo**
-> "Ei Siri, qual é o próximo passo com a Maria?" → *"Enviar proposta esta semana."*
+**2.11 Check next step**
+> "Hey Siri, what's the next step with Maria?" → *"Send the proposal this
+> week."*
 
-### Atualizar
+### Update
 
-**2.3 Atualizar estado do lead**
-> "Ei Siri, o Zé já não está interessado." / "Ei Siri, a Maria fechou negócio."
-- Localiza o Lead e atualiza **Estado**.
+**2.3 Update a lead's status**
+> "Hey Siri, Zé isn't interested anymore." / "Hey Siri, Maria closed the
+> deal."
+- Finds the Lead and updates **Estado** (Status).
 
-**2.4 Definir próximo passo / lembrete**
-> "Ei Siri, lembrete: ligar ao João amanhã."
-- Atualiza **Próximo Passo** no Lead correspondente.
+**2.4 Set next step / reminder**
+> "Hey Siri, reminder: call João tomorrow."
+- Updates **Próximo Passo** (Next Step) on the corresponding Lead.
 
-**2.6b Atualizar imóvel**
-> "Ei Siri, o imóvel da Rua X está reservado."
-- Atualiza registo em **Imóveis**.
+**2.6b Update a property**
+> "Hey Siri, the property on Main Street is reserved."
+- Updates the record in **Imóveis**.
 
-**2.7 Associar lead a imóvel**
-> "Ei Siri, o João está interessado no apartamento da Rua X."
-- Cria/atualiza ligação entre Lead e Imóvel.
+**2.7 Link a lead to a property**
+> "Hey Siri, João is interested in the apartment on Main Street."
+- Creates/updates the link between Lead and Property.
 
-### Apagar
+### Delete
 
-**2.12 Apagar lead / visita / imóvel**
-> "Ei Siri, apaga o lead do João."
-- **Exige sempre confirmação** antes de executar: Siri pergunta *"De certeza que queres apagar o lead do João Silva?"* e só apaga após confirmação explícita ("sim"/"confirmo"). Sem confirmação clara, a ação é cancelada.
-
----
-
-## 3. Classificação de campos (por ação de criação/atualização)
-
-- **Automático** — o sistema preenche sozinho (datas, título, estado inicial, sentimento inferido do texto). Nunca é perguntado.
-- **Pergunta se faltar** — todos os restantes campos. Se não vierem na frase inicial da pessoa, o agente pergunta.
-
----
-
-## 4. Mecanismo do diálogo guiado (wizard)
-
-Quando faltam campos que exigem pergunta, o agente não pergunta um a um sem critério — agrupa por tema para reduzir o número de idas-e-voltas:
-
-- **Grupo "contacto"**: Telefone + Email → *"Qual o contacto dele?"*
-- **Grupo "o que procura"**: Tipo de Imóvel + Orçamento → *"O que procura, e com que orçamento?"*
-- Campos sem grupo natural (ex: Nome, Resumo, Morada) são perguntados isoladamente.
-
-Regras do wizard:
-1. Pergunta o grupo/campo em falta.
-2. Se a resposta cobrir só parte do grupo, pergunta de seguimento **apenas pelo campo que ainda falta** (ex: só *"E o orçamento?"*).
-3. Se a pessoa disser "não sei" / "salta" / equivalente, o agente avança sem preencher esse campo — nunca insiste.
-4. O diálogo continua até não haver mais campos "pergunta se faltar" por preencher (ou todos terem sido salteados).
+**2.12 Delete a lead / visit / property**
+> "Hey Siri, delete João's lead."
+- **Always requires confirmation** before executing: Siri asks *"Are you
+  sure you want to delete João Silva's lead?"* and only deletes after an
+  explicit confirmation ("yes"/"confirm"). Without a clear confirmation,
+  the action is cancelled.
 
 ---
 
-## 5. Fluxo de decisão (resumo)
+## 3. Field classification (for create/update actions)
 
-Para qualquer ação por voz, o agente precisa de:
-1. **Classificar a intenção** (Criar / Ler / Atualizar / Apagar, e qual entidade).
-2. **Extrair entidades** do que já foi dito.
-3. **Verificar existência** do Lead/Imóvel no CRM (procura por nome/morada).
-4. Se for **Apagar** → pedir confirmação antes de executar.
-5. Se for **Criar/Atualizar** e faltarem campos → seguir o wizard guiado (secção 4).
-6. Se for **Ler** → consultar o CRM e devolver resposta em texto para o Shortcut falar.
-7. **Executar** a operação no Airtable.
+- **Automatic** — the system fills it in by itself (dates, title, initial
+  status, sentiment inferred from the text). Never asked.
+- **Asked if missing** — every other field. If it's not in the person's
+  initial sentence, the agent asks.
 
-*(O desenho do grafo LangGraph que implementa este fluxo será discutido separadamente.)*
+---
+
+## 4. Guided dialogue (wizard) mechanism
+
+When fields that require a question are missing, the agent doesn't ask one
+by one without criteria — it groups by topic to reduce the number of
+back-and-forths:
+
+- **"Contact" group**: Telefone (Phone) + Email → *"What's their contact
+  info?"*
+- **"What they're looking for" group**: Tipo de Imóvel (Property Type) +
+  Orçamento (Budget) → *"What are they looking for, and with what
+  budget?"*
+- Fields with no natural group (e.g. Nome/Name, Resumo/Summary,
+  Morada/Address) are asked individually.
+
+Wizard rules:
+1. Ask the missing group/field.
+2. If the answer only covers part of the group, ask a follow-up **only
+   for the field still missing** (e.g. just *"And the budget?"*).
+3. If the person says "I don't know" / "skip" / equivalent, the agent
+   moves on without filling that field — it never insists.
+4. The dialogue continues until there are no more "asked if missing"
+   fields left to fill (or all have been skipped).
+
+---
+
+## 5. Decision flow (summary)
+
+For any voice action, the agent needs to:
+1. **Classify the intent** (Create / Read / Update / Delete, and which
+   entity).
+2. **Extract entities** from what's already been said.
+3. **Check existence** of the Lead/Property in the CRM (search by
+   name/address).
+4. If **Delete** → ask for confirmation before executing.
+5. If **Create/Update** and fields are missing → follow the guided wizard
+   (section 4).
+6. If **Read** → query the CRM and return a text response for the
+   Shortcut to speak.
+7. **Execute** the operation on Airtable.
+
+*(The LangGraph design that implements this flow is discussed
+separately.)*
