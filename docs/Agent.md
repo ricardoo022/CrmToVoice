@@ -1,231 +1,307 @@
-# Agente (LangGraph) — Documentação
+# Agent (LangGraph) — Documentation
 
-Este documento cobre o desenho do agente que liga o Siri Shortcut ao CRM (ver `CRM.md` para a estrutura de dados e ações).
-
----
-
-## 1. Entrada
-
-- O Shortcut usa o **dictation nativo do iPhone** (Siri já transcreve a fala). O webhook recebe **texto**, não áudio — sem nó de transcrição no grafo.
+This document covers the design of the agent that connects the Siri
+Shortcut to the CRM (see `CRM.md` for the data structure and actions).
 
 ---
 
-## 2. Modelo de sessão / memória
+## 1. Input
 
-- Cada execução do Shortcut ("Ei Siri...") é uma **thread isolada** — como abrir uma conversa nova, nunca herda contexto de execuções anteriores.
-- Dentro de **uma execução**, se o agente precisar de perguntar campos em falta (wizard) ou confirmar um apagar, isso é uma troca de várias mensagens *dentro da mesma thread*. O Shortcut gera um `session_id` no início da execução e envia-o em todas as chamadas ao webhook dessa mesma execução.
-- Memória curta dentro da thread = **checkpointer do LangGraph**, indexado por `thread_id` = `session_id`. Permite ao grafo pausar a meio (`interrupt()`) à espera de resposta e retomar exatamente onde estava.
-- Memória de longo prazo = **o próprio CRM (Airtable)**. Não guardamos histórico de conversas passadas — se o agente precisa de contexto sobre um lead (ex: "o Zé já não está interessado"), procura o Zé diretamente na tabela de Leads.
-- Se uma sessão for interrompida antes de terminar (Shortcut falha, pessoa desliga), a informação parcial **perde-se** — só se escreve no Airtable quando a ação está completa/confirmada. Não há retoma de sessões antigas.
+- The Shortcut uses the **iPhone's native dictation** (Siri already
+  transcribes speech). The webhook receives **text**, not audio — no
+  transcription node in the graph.
 
 ---
 
-## 3. Arquitetura em camadas
+## 2. Session / memory model
+
+- Each Shortcut execution ("Hey Siri...") is an **isolated thread** — like
+  opening a new conversation, it never inherits context from previous
+  executions.
+- Within **one execution**, if the agent needs to ask for missing fields
+  (wizard) or confirm a delete, that's an exchange of several messages
+  *within the same thread*. The Shortcut generates a `session_id` at the
+  start of the execution and sends it on every webhook call within that
+  same execution.
+- Short-term memory within the thread = **the LangGraph checkpointer**,
+  indexed by `thread_id` = `session_id`. Lets the graph pause mid-way
+  (`interrupt()`) waiting for an answer and resume exactly where it left
+  off.
+- Long-term memory = **the CRM itself (Airtable)**. We don't store a
+  history of past conversations — if the agent needs context about a lead
+  (e.g. "Zé isn't interested anymore"), it looks Zé up directly in the
+  Leads table.
+- If a session is interrupted before finishing (Shortcut fails, person
+  hangs up), the partial information **is lost** — nothing is written to
+  Airtable until the action is complete/confirmed. There is no resuming
+  old sessions.
+
+---
+
+## 3. Layered architecture
 
 ```
-Webhook (recebe mensagem + session_id)
+Webhook (receives message + session_id)
         │
         ▼
-Middleware de Contexto ── procura nomes/moradas mencionados no CRM, anexa dados encontrados
+Context Middleware ── looks up names/addresses mentioned in the CRM, attaches found data
         │
         ▼
-Agente (LangGraph, já com o contexto do CRM anexado)
+Agent (LangGraph, already with CRM context attached)
 ```
 
-**Middleware de Contexto** — camada determinística (sem LLM), separada do raciocínio do agente. Recebe a mensagem, identifica candidatos a nome/morada mencionados, vai ao Airtable buscar os registos correspondentes (se existirem) e entrega-os já resolvidos ao agente. Corre em **toda** a mensagem, sessão nova ou a continuar — não decide nada sobre intenção, só enriquece o estado com dados reais do CRM para o agente não ter de adivinhar nem alucinar.
+**Context Middleware** — a deterministic layer (no LLM), separate from
+the agent's reasoning. Receives the message, identifies name/address
+candidates mentioned, fetches the matching records from Airtable (if they
+exist), and hands them already resolved to the agent. Runs on **every**
+message, new session or continuing one — it never decides anything about
+intent, it only enriches the state with real CRM data so the agent
+doesn't have to guess or hallucinate.
 
-O agente nunca vai diretamente ao Airtable **procurar** coisas — recebe os dados já resolvidos pelo middleware. Só volta a tocar no Airtable no fim de cada caminho, para escrever (criar/atualizar/apagar) ou para consultar (ler).
+The agent never goes directly to Airtable to **search** for things — it
+receives data already resolved by the middleware. It only touches
+Airtable again at the end of each path, to write (create/update/delete)
+or to query (read).
 
 ---
 
-## 4. Estado partilhado (State)
+## 4. Shared state (State)
 
 ```python
 class AgentState:
     session_id: str
-    entrada_atual: str              # último texto recebido (frase inicial ou resposta a uma pergunta)
-    intencao: str                   # criar | ler | atualizar | apagar
-    entidade_alvo: str              # Lead | Visita | Imovel
-    contexto_crm: dict              # registos resolvidos pelo middleware (lead/imóvel encontrados)
-    campos_extraidos: dict          # acumula ao longo da sessão
-    campos_salteados: list[str]     # campos que a pessoa disse "não sei" (só relevante em Criar)
-    pergunta_pendente: str | None   # pergunta a que se está à espera de resposta
-    aguarda_confirmacao_apagar: bool
-    resposta_final: str | None
+    current_input: str              # last text received (initial sentence or answer to a question)
+    intent: str                     # create | read | update | delete
+    target_entity: str              # Lead | Visit | Property
+    crm_context: dict                # records resolved by the middleware (lead/property found)
+    extracted_fields: dict           # accumulates over the course of the session
+    skipped_fields: list[str]        # fields the person said "I don't know" to (only relevant in Create)
+    pending_question: str | None    # question currently awaiting an answer
+    awaiting_delete_confirmation: bool
+    final_response: str | None
 ```
 
 ---
 
-## 5. Grafo — dois routers + quatro caminhos
+## 5. Graph — two routers + four paths
 
 ```
-[entrada: texto + session_id]
+[input: text + session_id]
         │
         ▼
- Router 1 — sessão nova ou a continuar?
+ Router 1 — new session or continuing?
         │
-        ├─ a continuar (havia pergunta_pendente) ──► junta resposta a campos_extraidos
-        │                                              e retoma o caminho onde estava (sem
-        │                                              voltar a classificar intenção)
+        ├─ continuing (there was a pending_question) ──► merges answer into extracted_fields
+        │                                              and resumes the path it was in (without
+        │                                              re-classifying intent)
         │
-        └─ nova
+        └─ new
               │
               ▼
-        Interpretar Fala (1 chamada LLM: intenção + entidade + campos extraídos)
+        Interpret Speech (1 LLM call: intent + entity + extracted fields)
               │
               ▼
-        Router 2 — qual a ação?
+        Router 2 — which action?
               │
    ┌──────────┼──────────┬──────────┐
    ▼          ▼          ▼          ▼
- CRIAR      LER       ATUALIZAR   APAGAR
+ CREATE      READ       UPDATE     DELETE
 ```
 
-### Caminho CRIAR
+### CREATE path
 ```
-contexto do CRM (middleware) já anexado
+CRM context (middleware) already attached
         │
         ▼
-Faltam campos obrigatórios? (classificação em CRM.md §3)
+Are required fields missing? (classification in CRM.md §3)
         │
-        ├─ sim → pergunta agrupada (CRM.md §4) → interrupt() → pausa
-        └─ não → escreve no Airtable → resposta de confirmação → FIM
+        ├─ yes → grouped question (CRM.md §4) → interrupt() → pause
+        └─ no → write to Airtable → confirmation response → END
 ```
-Único caminho com wizard — pergunta agrupada, aceita "não sei"/"salta", nunca insiste.
+The only path with a wizard — grouped question, accepts "I don't
+know"/"skip", never insists.
 
-### Caminho LER
+### READ path
 ```
-contexto do CRM (se aplicável) ou consulta direta (ex: filtro por data)
+CRM context (if applicable) or direct query (e.g. filter by date)
         │
         ▼
-Consultar Airtable → formatar resposta em linguagem natural → FIM
+Query Airtable → format response in natural language → END
 ```
-Nunca escreve nada. Se o lead/imóvel mencionado não existir, responde isso diretamente em vez de inventar.
+Never writes anything. If the mentioned lead/property doesn't exist, it
+says so directly instead of making something up.
 
-### Caminho ATUALIZAR
+### UPDATE path
 ```
-contexto do CRM (tem de encontrar o registo)
+CRM context (must find the record)
         │
-        ├─ não encontrado → "Não encontrei esse lead/imóvel" → FIM
-        └─ encontrado
+        ├─ not found → "I couldn't find that lead/property" → END
+        └─ found
               │
-              ├─ mexe no Estado do Lead? ──► pergunta "porquê?" (se ainda não foi dito)
+              ├─ changes the Lead's Status? ──► asks "why?" (if not already said)
               │                                    │
-              │                              interrupt() → pausa
+              │                              interrupt() → pause
               │                                    │
-              │                              cria Visita (Tipo = "Nota", Resumo = motivo)
-              │                              → Estado do Lead atualiza como efeito colateral
-              │                              → FIM
+              │                              creates a Visit (Type = "Note", Summary = reason)
+              │                              → Lead's Status updates as a side effect
+              │                              → END
               │
-              └─ correção de facto (telefone, orçamento, preço, etc.)
-                    → atualiza APENAS os campos que a pessoa mencionou
-                      (sem wizard — não pergunta por campos extra) → FIM
+              └─ factual correction (phone, budget, price, etc.)
+                    → updates ONLY the fields the person mentioned
+                      (no wizard — doesn't ask for extra fields) → END
 ```
-Só a mudança de **Estado** pede razão — porque carrega contexto que vale a pena registar como interação (mesma lógica do caminho CRIAR → Visita). Correções simples de facto continuam diretas, sem perguntas.
+Only changing **Status** asks for a reason — because it carries context
+worth logging as an interaction (same logic as the CREATE → Visit path).
+Simple factual corrections stay direct, no questions asked.
 
-### Caminho APAGAR
+### DELETE path
 ```
-contexto do CRM (tem de encontrar o registo)
+CRM context (must find the record)
         │
-        ├─ não encontrado → "Não encontrei esse lead/imóvel" → FIM
-        └─ encontrado → pede confirmação → interrupt() → pausa
+        ├─ not found → "I couldn't find that lead/property" → END
+        └─ found → asks for confirmation → interrupt() → pause
                               │
-                              ├─ confirmado → apaga → FIM
-                              └─ negado/ambíguo → cancela, nada é apagado → FIM
+                              ├─ confirmed → deletes → END
+                              └─ denied/ambiguous → cancels, nothing is deleted → END
 ```
 
 ---
 
-## 6. Mecanismo de pausa (`interrupt`)
+## 6. Pause mechanism (`interrupt`)
 
-O `interrupt()` do LangGraph para a execução do grafo a meio (nó de pergunta ou de confirmação), o checkpointer guarda o estado associado ao `thread_id`. Quando a próxima chamada do Shortcut chega (mesma sessão, com a resposta da pessoa), o Router 1 reconhece a sessão a continuar e o grafo retoma exatamente nesse ponto — sem voltar a passar pelo Router 2.
+LangGraph's `interrupt()` halts graph execution mid-way (a question or
+confirmation node), the checkpointer saves the state associated with the
+`thread_id`. When the Shortcut's next call arrives (same session, with
+the person's answer), Router 1 recognizes the session is continuing and
+the graph resumes exactly at that point — without going back through
+Router 2.
+
+**Implementation rule — idempotency before `interrupt()`:** when a node
+resumes after an `interrupt()`, all code *before* that call runs again
+from scratch (that's how LangGraph works). A node can pause more than
+once within the same session — wizard rule 2 (`CRM.md` §4: "if the answer
+only covers part of the group, ask a follow-up only for the field still
+missing") means `create_ask` can call `interrupt()` several times in a
+row. Because of that:
+
+- **No Airtable write (create/update/delete) may happen before the last
+  `interrupt()` in a path resolves.** Concretely: "check whether the Lead
+  already exists → otherwise, create a new lead" (`CRM.md` §2.1) may only
+  run inside `create_write`, never inside `resolve_context` or
+  `create_check_fields`/`create_ask` — otherwise every wizard follow-up
+  question would create a duplicate Lead.
+- `resolve_context` (the middleware) may only read/search, never create
+  records — this follows the general rule already documented, but is made
+  explicit here because of the duplication risk.
+- The same is already well designed in the Update path:
+  `update_create_visit` (creates the Visit/Note) runs **after** the
+  "why?" `interrupt()`, not before — keep this order when implementing.
 
 ---
 
-## 7. Casos de erro / fallback
+## 7. Error cases / fallback
 
-- **Lead/Imóvel mencionado mas não existe** (em Ler/Atualizar/Apagar) → resposta clara e direta, não inventa nem tenta preencher em vazio.
-- **Nome ambíguo** (ex: dois "Joões" no CRM) → outro `interrupt()`, tipo pergunta: "há dois Joões — João Silva ou João Costa?"
-- **Intenção não reconhecível** (ruído, Siri percebeu mal) → pede para repetir, não assume.
-
----
-
-## 8. Decisões de runtime (fase atual: apenas desenvolvimento local)
-
-Resolvido em `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`:
-
-- **LLM**: chamado via **OpenRouter** (abstração de modelo) — modelo concreto não fixado, é valor de configuração.
-- **Hosting**: sem deploy por agora. Corre como **dev server local** (`langgraph dev`); o Shortcut liga diretamente por IP na mesma rede Wi-Fi.
-- **Checkpointer**: **SQLite** local — sobrevive a reinícios do dev server durante uma sessão em pausa.
-- **Payload Shortcut ↔ webhook**: JSON mínimo — pedido `{session_id, text}`, resposta `{session_id, reply_text, done}`. `done: false` = grafo em pausa (`interrupt()`); o Shortcut fala `reply_text`, volta a ditar, e chama outra vez com o mesmo `session_id`.
-
-Fora de âmbito por agora: hosting público, TLS, autenticação, túnel (ngrok/Tailscale) — a revisitar só se o projeto sair do dev local.
+- **Lead/Property mentioned but doesn't exist** (in Read/Update/Delete) →
+  clear, direct response, doesn't make anything up or try to fill in
+  blanks.
+- **Ambiguous name** (e.g. two "Joãos" in the CRM) → another
+  `interrupt()`, a question like: "there are two Joãos — João Silva or
+  João Costa?"
+- **Unrecognizable intent** (noise, Siri misheard) → asks to repeat,
+  doesn't assume.
 
 ---
 
-## 9. Especificação dos nós (para implementação)
+## 8. Runtime decisions (current phase: local development only)
 
-Mapeamento de cada caixa dos diagramas acima para um nó do `StateGraph`, com o tipo (determinístico ou LLM) e o que faz. Serve de base direta para o código — ainda sem escolher o LLM nem o hosting (secção 8).
+Resolved in `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`:
 
-| Nó | Tipo | Faz |
+- **LLM**: called via **OpenRouter** (model abstraction) — no specific
+  model pinned, it's a config value.
+- **Hosting**: no deployment for now. Runs as a **local dev server**
+  (`langgraph dev`); the Shortcut connects directly by IP on the same
+  Wi-Fi network.
+- **Checkpointer**: local **SQLite** — survives dev-server restarts
+  during a paused session.
+- **Shortcut ↔ webhook payload**: minimal JSON — request
+  `{session_id, text}`, response `{session_id, reply_text, done}`.
+  `done: false` = graph paused (`interrupt()`); the Shortcut speaks
+  `reply_text`, opens dictation again, and calls again with the same
+  `session_id`.
+
+Out of scope for now: public hosting, TLS, authentication, tunnel
+(ngrok/Tailscale) — to revisit only if the project moves past local dev.
+
+---
+
+## 9. Node specification (for implementation)
+
+Maps each box in the diagrams above to a `StateGraph` node, with its type
+(deterministic or LLM) and what it does. Serves as a direct basis for the
+code — still without picking the LLM or the hosting (section 8).
+
+| Node | Type | Does |
 |---|---|---|
-| `router_sessao` | determinístico | Lê `pergunta_pendente` do estado. Se existir, salta `interpretar_fala` e `router_acao` — vai direto retomar o caminho ativo com a nova `entrada_atual` juntada a `campos_extraidos`. |
-| `interpretar_fala` | LLM (1 chamada) | Recebe `entrada_atual` (+ histórico da sessão). Devolve `intencao`, `entidade_alvo`, `campos_extraidos` (structured output). Só corre em sessão nova. |
-| `resolver_contexto` | determinístico (middleware) | Recebe candidatos a nome/morada extraídos, procura no Airtable, preenche `contexto_crm`. Corre sempre, sessão nova ou a continuar. |
-| `router_acao` | determinístico | Lê `intencao` e distribui para um dos 4 subgrafos: `criar_*`, `ler_*`, `atualizar_*`, `apagar_*`. |
-| `criar_verificar_campos` | determinístico | Compara `campos_extraidos` com a lista "pergunta se faltar" da entidade (`CRM.md` §3), excluindo `campos_salteados`. |
-| `criar_perguntar` | determinístico + `interrupt()` | Gera a pergunta agrupada (`CRM.md` §4), define `pergunta_pendente`, pausa. |
-| `criar_escrever` | determinístico (tool Airtable) | Cria o registo (Lead/Visita/Imóvel) no Airtable. Define `resposta_final`. |
-| `ler_consultar` | determinístico (tool Airtable) | Executa a query (filtros por data/estado/lead) usando `contexto_crm` ou parâmetros extraídos. |
-| `ler_formatar_resposta` | LLM (opcional) ou template | Converte o resultado da query em frase natural para `resposta_final`. |
-| `atualizar_verificar_alvo` | determinístico | Se `contexto_crm` não tem o registo → `resposta_final` = "não encontrei"; senão decide se o campo a mudar é `Estado`. |
-| `atualizar_perguntar_porque` | determinístico + `interrupt()` | Só corre se o campo for `Estado` e não houver motivo já dito. Pausa à espera do motivo. |
-| `atualizar_criar_visita` | determinístico (tool Airtable) | Cria Visita (Tipo="Nota", Resumo=motivo) e atualiza `Estado` do Lead como efeito colateral. |
-| `atualizar_escrever_direto` | determinístico (tool Airtable) | Correções de facto (telefone, preço, etc.) — atualiza só os campos mencionados. |
-| `apagar_confirmar` | determinístico + `interrupt()` | Se `contexto_crm` não tem o registo → "não encontrei". Senão pergunta confirmação, pausa. |
-| `apagar_executar` | determinístico (tool Airtable) | Corre só após confirmação explícita ("sim"/"confirmo"); caso contrário cancela sem apagar. |
-| `responder` | determinístico | Nó final comum — formata `resposta_final` e marca a sessão como concluída (para o Shortcut saber que o ciclo terminou). |
+| `session_router` | deterministic | Reads `pending_question` from the state. If it exists, skips `interpret_speech` and `action_router` — goes straight to resuming the active path with the new `current_input` merged into `extracted_fields`. |
+| `interpret_speech` | LLM (1 call) | Receives `current_input` (+ session history). Returns `intent`, `target_entity`, `extracted_fields` (structured output). Only runs on a new session. |
+| `resolve_context` | deterministic (middleware) | Receives extracted name/address candidates, searches Airtable, fills `crm_context`. Always runs, new session or continuing. |
+| `action_router` | deterministic | Reads `intent` and dispatches to one of the 4 subgraphs: `create_*`, `read_*`, `update_*`, `delete_*`. |
+| `create_check_fields` | deterministic | Compares `extracted_fields` against the entity's "asked if missing" list (`CRM.md` §3), excluding `skipped_fields`. |
+| `create_ask` | deterministic + `interrupt()` | Generates the grouped question (`CRM.md` §4), sets `pending_question`, pauses. |
+| `create_write` | deterministic (Airtable tool) | Creates the record (Lead/Visit/Property) in Airtable. Sets `final_response`. |
+| `read_query` | deterministic (Airtable tool) | Runs the query (filters by date/status/lead) using `crm_context` or extracted parameters. |
+| `read_format_response` | LLM (optional) or template | Converts the query result into a natural-language sentence for `final_response`. |
+| `update_check_target` | deterministic | If `crm_context` doesn't have the record → `final_response` = "not found"; otherwise decides whether the field to change is `Status`. |
+| `update_ask_why` | deterministic + `interrupt()` | Only runs if the field is `Status` and no reason has been given yet. Pauses waiting for the reason. |
+| `update_create_visit` | deterministic (Airtable tool) | Creates a Visit (Type="Note", Summary=reason) and updates the Lead's `Status` as a side effect. |
+| `update_write_direct` | deterministic (Airtable tool) | Factual corrections (phone, price, etc.) — updates only the mentioned fields. |
+| `delete_confirm` | deterministic + `interrupt()` | If `crm_context` doesn't have the record → "not found". Otherwise asks for confirmation, pauses. |
+| `delete_execute` | deterministic (Airtable tool) | Only runs after explicit confirmation ("yes"/"confirm"); otherwise cancels without deleting. |
+| `respond` | deterministic | Common final node — formats `final_response` and marks the session as concluded (so the Shortcut knows the cycle ended). |
 
-### Visualização do grafo completo
+### Full graph visualization
 
 ```mermaid
 flowchart TD
-    Start([Entrada: texto + session_id]) --> R1{Router 1\nsessão a continuar?}
+    Start([Input: text + session_id]) --> R1{Router 1\ncontinuing session?}
 
-    R1 -->|sim, havia pergunta pendente| Merge[Junta resposta ao estado]
-    R1 -->|não, sessão nova| LLM[Interpretar Fala\nintenção + campos extraídos]
+    R1 -->|yes, there was a pending question| Merge[Merge answer into state]
+    R1 -->|no, new session| LLM[Interpret Speech\nintent + extracted fields]
 
-    Merge --> Resolve[Resolver Contexto\nmiddleware CRM]
+    Merge --> Resolve[Resolve Context\nCRM middleware]
     LLM --> Resolve
-    Resolve --> R2{Router 2\nqual ação?}
+    Resolve --> R2{Router 2\nwhich action?}
 
-    R2 -->|Criar| Faltam{Faltam campos\nobrigatórios?}
-    Faltam -->|sim| PerguntaCriar[Pergunta agrupada]
-    PerguntaCriar --> Pausa1[["⏸ pausa (interrupt)"]]
-    Pausa1 -.próxima chamada, mesma sessão.-> R1
-    Faltam -->|não| EscreveCriar[Cria registo no Airtable]
-    EscreveCriar --> Responder
+    R2 -->|Create| Missing{Required fields\nmissing?}
+    Missing -->|yes| AskCreate[Grouped question]
+    AskCreate --> Pause1[["⏸ pause (interrupt)"]]
+    Pause1 -.next call, same session.-> R1
+    Missing -->|no| WriteCreate[Create record in Airtable]
+    WriteCreate --> Respond
 
-    R2 -->|Ler| Consulta[Consulta Airtable]
-    Consulta --> Formata[Formata resposta em linguagem natural]
-    Formata --> Responder
+    R2 -->|Read| Query[Query Airtable]
+    Query --> Format[Format response in natural language]
+    Format --> Respond
 
-    R2 -->|Atualizar| Encontrado1{Registo\nencontrado?}
-    Encontrado1 -->|não| NaoEncontrado[Responde: não encontrei] --> Responder
-    Encontrado1 -->|sim| MexeEstado{Mexe no\nEstado?}
-    MexeEstado -->|sim| PerguntaPorque[Pergunta: porquê?]
-    PerguntaPorque --> Pausa2[["⏸ pausa (interrupt)"]]
-    Pausa2 -.próxima chamada, mesma sessão.-> R1
-    MexeEstado -->|não| AtualizaDireto[Atualiza campos mencionados]
-    AtualizaDireto --> Responder
+    R2 -->|Update| Found1{Record\nfound?}
+    Found1 -->|no| NotFound[Responds: not found] --> Respond
+    Found1 -->|yes| ChangesStatus{Changes\nStatus?}
+    ChangesStatus -->|yes| AskWhy[Asks: why?]
+    AskWhy --> Pause2[["⏸ pause (interrupt)"]]
+    Pause2 -.next call, same session.-> R1
+    ChangesStatus -->|no| UpdateDirect[Updates mentioned fields]
+    UpdateDirect --> Respond
 
-    R2 -->|Apagar| Encontrado2{Registo\nencontrado?}
-    Encontrado2 -->|não| NaoEncontrado
-    Encontrado2 -->|sim| Confirma[Pede confirmação]
-    Confirma --> Pausa3[["⏸ pausa (interrupt)"]]
-    Pausa3 -.próxima chamada, mesma sessão.-> R1
+    R2 -->|Delete| Found2{Record\nfound?}
+    Found2 -->|no| NotFound
+    Found2 -->|yes| Confirm[Asks for confirmation]
+    Confirm --> Pause3[["⏸ pause (interrupt)"]]
+    Pause3 -.next call, same session.-> R1
 
-    Responder([Responder — fim do ciclo])
+    Respond([Respond — end of cycle])
 ```
 
-As linhas tracejadas (`-.->`) mostram o que acontece quando o Shortcut volta a chamar o webhook dentro da mesma sessão: entra outra vez pelo Router 1, que reconhece a pergunta pendente e reencaminha para o ponto certo — nunca recomeça do zero.
+The dashed lines (`-.->`) show what happens when the Shortcut calls the
+webhook again within the same session: it re-enters through Router 1,
+which recognizes the pending question and routes back to the right point
+— never starts over from scratch.

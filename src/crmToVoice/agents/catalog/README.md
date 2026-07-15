@@ -1,3 +1,5 @@
 # catalog
 
-Per-intent path logic, grouped by agent. Currently one agent: `crmAgent/`.
+| Folder | Purpose |
+|---|---|
+| `crmAgent/` | Per-intent path logic for the (currently only) `crmAgent` — see `crmAgent/README.md`. |

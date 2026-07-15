@@ -5,6 +5,7 @@ import requests
 
 from crmToVoice.airtable import imoveis
 from crmToVoice.airtable.client import get_table
+from crmToVoice.models import PropertyFields
 
 
 def _unique_morada(prefix: str) -> str:
@@ -88,3 +89,17 @@ def test_get_imovel_expands_linked_visita(cleanup):
 
     assert len(fetched["visitas"]) == 1
     assert fetched["visitas"][0]["id"] == visita["id"]
+
+
+def test_create_imovel_accepts_property_fields_dump_by_alias(cleanup):
+    payload = PropertyFields(
+        morada=_unique_morada("US-AG-01 Contract"),
+        tipo="Apartamento",
+        preco=250000,
+    ).model_dump(by_alias=True, exclude_none=True)
+
+    created = imoveis.create_imovel(payload)
+    cleanup("Imóveis", created["id"])
+
+    assert created["fields"]["Morada"] == payload["Morada"]
+    assert created["fields"]["Preço"] == 250000

@@ -1,142 +1,147 @@
-# Epic 01 — Base de Dados (Airtable)
+# Epic 01 — Database (Airtable)
 
-**Estado: ✅ Concluído (2026-07-15).** Implementado em
-`src/crmToVoice/airtable/` (`client.py`, `leads.py`, `imoveis.py`,
-`visitas.py`), com testes unitários (mocked) em `tests/unit/airtable/` e
-testes de integração (Airtable real, com limpeza automática dos registos
-criados) em `tests/integration/airtable/`. `make check` e `make test`
-passam: lint, typecheck, 31 testes unitários, 18 testes de integração.
+**Status: ✅ Done (2026-07-15).** Implemented in `src/crmToVoice/airtable/`
+(`client.py`, `leads.py`, `imoveis.py`, `visitas.py`), with unit tests
+(mocked) in `tests/unit/airtable/` and integration tests (real Airtable,
+with automatic cleanup of created records) in `tests/integration/airtable/`.
+`make check` and `make test` pass: lint, typecheck, 31 unit tests, 18
+integration tests.
 
-**Objetivo:** ter as funções de acesso aos dados sobre a base Airtable
-"CRM Imobiliário (Voz)" (`appiFiRN7rzTMqyff`), para que o agente (Epic 02)
-nunca fale diretamente com a API do Airtable — só com funções já prontas
-para criar, ler, atualizar, apagar e pesquisar registos.
+**Goal:** have the data-access functions over the Airtable base "CRM
+Imobiliário (Voz)" (`appiFiRN7rzTMqyff`), so that the agent (Epic 02)
+never talks to the Airtable API directly — only through functions already
+built to create, read, update, delete, and search records.
 
-**Fora de âmbito desta epic:** classificação de intenção, o wizard de
-perguntas, o grafo LangGraph, o checkpointer, o webhook. Essas entram na
-Epic 02 (Agente) e Epic 03 (Webhook), que consomem o que aqui é construído.
+**Out of scope for this epic:** intent classification, the question
+wizard, the LangGraph graph, the checkpointer, the webhook. Those belong
+to Epic 02 (Agent) and Epic 03 (Webhook), which consume what's built here.
 
-**Estado atual (verificado em Airtable, 2026-07-15):** a base já existe e
-as três tabelas (Leads, Imóveis, Visitas) já têm exatamente os campos
-descritos em `docs/CRM.md` §1. Não há trabalho de desenho de esquema nesta
-epic — só as funções de acesso.
+**Current state (verified against Airtable, 2026-07-15):** the base
+already exists and its three tables (Leads, Imóveis, Visitas) already have
+exactly the fields described in `docs/CRM.md` §1. There's no schema-design
+work in this epic — only the access functions.
 
----
-
-## US-DB-01 — Ligação à base Airtable
-
-Como developer
-Quero configurar o acesso autenticado à base Airtable a partir do código
-Para que qualquer funcionalidade futura possa ler/escrever na base sem
-repetir lógica de autenticação
-
-**Critérios de Aceitação:**
-
-- [x] Token de acesso ao Airtable (Personal Access Token) é lido de
-      variável de ambiente — nunca hardcoded no código nem commitado
-      (`client.get_api()`, lê `AIRTABLE_API_KEY` via `os.environ`)
-- [x] `.env.example` documenta as variáveis necessárias (ex: `AIRTABLE_API_KEY`,
-      `AIRTABLE_BASE_ID`)
-- [x] Existe uma função/cliente único de ligação à base, reutilizado por
-      todas as outras funções de acesso a dados (`client.get_table()`,
-      cacheado via `get_api()`; `leads.py`/`imoveis.py`/`visitas.py`
-      passam todos por aqui)
+> Note on naming: the module/function names below (`imoveis.py`,
+> `visitas.py`, `create_imovel`, `search_leads(nome)`, etc.) use Portuguese
+> entity names because that's what they were written and tested against —
+> renaming them is a source-code refactor of already-shipped, CI-passing
+> work, not a documentation change, so it's tracked separately rather than
+> done silently as part of translating this doc to English.
 
 ---
 
-## US-DB-02 — Repositório de Leads (criar / ler / atualizar / apagar / pesquisar)
+## US-DB-01 — Connection to the Airtable base
 
-Como developer
-Quero funções que criam, leem, atualizam, apagam e pesquisam Leads
-Para que o agente nunca construa chamadas Airtable à mão — só chame estas
-funções
+As a developer
+I want to configure authenticated access to the Airtable base from code
+So that any future feature can read/write to the base without repeating
+authentication logic
 
-**Critérios de Aceitação:**
+**Acceptance Criteria:**
 
-- [x] Função para criar um Lead, aceitando qualquer campo de
-      `docs/CRM.md` §1.1 (`leads.create_lead`)
-- [x] Função para atualizar um Lead existente por ID, aceitando qualquer
-      campo da tabela — incluindo campos "automático" na criação
-      (`Estado`, `Sentimento`, `Data Última Interação`); essa
-      classificação (`docs/CRM.md` §3) só governa o wizard de criação, não
-      limita o que esta função pode escrever (atualizar `Estado` é uma
-      ação suportada — §2.3) (`leads.update_lead`)
-- [x] Função para apagar um Lead por ID (`leads.delete_lead`)
-- [x] Função para procurar Leads por nome (correspondência
-      case-insensitive, parcial), devolvendo lista de correspondências
-      (`leads.search_leads`)
-- [x] Função para ler um Lead por ID, incluindo as Visitas associadas
+- [x] The Airtable access token (Personal Access Token) is read from an
+      environment variable — never hardcoded in code nor committed
+      (`client.get_api()`, reads `AIRTABLE_API_KEY` via `os.environ`)
+- [x] `.env.example` documents the required variables (e.g.
+      `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`)
+- [x] There's a single connection function/client to the base, reused by
+      every other data-access function (`client.get_table()`, cached via
+      `get_api()`; `leads.py`/`imoveis.py`/`visitas.py` all go through
+      this)
+
+---
+
+## US-DB-02 — Leads repository (create / read / update / delete / search)
+
+As a developer
+I want functions that create, read, update, delete, and search Leads
+So that the agent never builds Airtable calls by hand — it only calls
+these functions
+
+**Acceptance Criteria:**
+
+- [x] Function to create a Lead, accepting any field from `docs/CRM.md`
+      §1.1 (`leads.create_lead`)
+- [x] Function to update an existing Lead by ID, accepting any field on
+      the table — including fields that are "automatic" at creation time
+      (`Estado`/Status, `Sentimento`/Sentiment, `Data Última
+      Interação`/Last Interaction Date); that classification
+      (`docs/CRM.md` §3) only governs the creation wizard, it doesn't
+      limit what this function can write (updating `Estado`/Status is a
+      supported action — §2.3) (`leads.update_lead`)
+- [x] Function to delete a Lead by ID (`leads.delete_lead`)
+- [x] Function to search Leads by name (case-insensitive, partial match),
+      returning a list of matches (`leads.search_leads`)
+- [x] Function to read a Lead by ID, including its associated Visits
       (`leads.get_lead`)
 
 ---
 
-## US-DB-03 — Repositório de Imóveis (criar / ler / atualizar / apagar / pesquisar)
+## US-DB-03 — Properties repository (create / read / update / delete / search)
 
-Como developer
-Quero funções que criam, leem, atualizam, apagam e pesquisam Imóveis
-Para que o agente nunca construa chamadas Airtable à mão para Imóveis
+As a developer
+I want functions that create, read, update, delete, and search Properties
+(*Imóveis*)
+So that the agent never builds Airtable calls by hand for Properties
 
-**Critérios de Aceitação:**
+**Acceptance Criteria:**
 
-- [x] Função para criar um Imóvel, aceitando qualquer campo de
+- [x] Function to create a Property, accepting any field from
       `docs/CRM.md` §1.2 (`imoveis.create_imovel`)
-- [x] Função para atualizar um Imóvel existente por ID, aceitando
-      qualquer campo da tabela — incluindo `Estado` (automático na
-      criação, mas explicitamente atualizável via voz — §2.6b)
-      (`imoveis.update_imovel`)
-- [x] Função para apagar um Imóvel por ID (`imoveis.delete_imovel`)
-- [x] Função para procurar Imóveis por morada (correspondência
-      case-insensitive, parcial), devolvendo lista de correspondências
-      (`imoveis.search_imoveis`)
-- [x] Função para ler um Imóvel por ID, incluindo as Visitas associadas
+- [x] Function to update an existing Property by ID, accepting any field
+      on the table — including `Estado`/Status (automatic at creation,
+      but explicitly updatable by voice — §2.6b) (`imoveis.update_imovel`)
+- [x] Function to delete a Property by ID (`imoveis.delete_imovel`)
+- [x] Function to search Properties by address (case-insensitive, partial
+      match), returning a list of matches (`imoveis.search_imoveis`)
+- [x] Function to read a Property by ID, including its associated Visits
       (`imoveis.get_imovel`)
 
 ---
 
-## US-DB-04 — Repositório de Visitas (criar / ler / atualizar / apagar / consultar)
+## US-DB-04 — Visits repository (create / read / update / delete / query)
 
-Como developer
-Quero funções que criam, leem, atualizam, apagam e consultam Visitas,
-incluindo por data e por Lead associado
-Para suportar o registo de visitas, a correção de uma visita mal
-registada (§2.12) e as perguntas de leitura por voz (§2.8–2.11)
+As a developer
+I want functions that create, read, update, delete, and query Visits
+(*Visitas*), including by date and by associated Lead
+So that this supports logging visits, correcting a wrongly logged visit
+(§2.12), and the voice read/query questions (§2.8–2.11)
 
-**Critérios de Aceitação:**
+**Acceptance Criteria:**
 
-- [x] Função para criar uma Visita, ligando-a a um Lead (obrigatório) e
-      opcionalmente a um Imóvel, aceitando qualquer campo de
-      `docs/CRM.md` §1.3 (`visitas.create_visita`, valida que `Lead` não
-      é vazio e levanta `ValueError` caso contrário)
-- [x] Função para atualizar uma Visita existente por ID, aceitando
-      qualquer campo da tabela — incluindo reatribuir os campos de
-      ligação `Lead`/`Imóvel` (§2.7 "associar lead a imóvel")
-      (`visitas.update_visita`)
-- [x] Função para apagar uma Visita por ID (confirmação de voz antes de
-      chamar esta função é responsabilidade da Epic 02, não desta função)
+- [x] Function to create a Visit, linking it to a Lead (required) and
+      optionally to a Property, accepting any field from `docs/CRM.md`
+      §1.3 (`visitas.create_visita`, validates that `Lead` isn't empty
+      and raises `ValueError` otherwise)
+- [x] Function to update an existing Visit by ID, accepting any field on
+      the table — including reassigning the `Lead`/`Imóvel` link fields
+      (§2.7 "link a lead to a property") (`visitas.update_visita`)
+- [x] Function to delete a Visit by ID (voice confirmation before calling
+      this function is Epic 02's responsibility, not this function's)
       (`visitas.delete_visita`)
-- [x] Função para ler uma Visita por ID (`visitas.get_visita`)
-- [x] Função para listar Visitas por intervalo de datas (suporta "que
-      visitas tenho hoje?") (`visitas.list_visitas_by_date_range`)
-- [x] Função para listar Visitas associadas a um Lead específico,
-      ordenadas por data (suporta "qual é o próximo passo com a Maria?")
+- [x] Function to read a Visit by ID (`visitas.get_visita`)
+- [x] Function to list Visits within a date range (supports "what visits
+      do I have today?") (`visitas.list_visitas_by_date_range`)
+- [x] Function to list Visits associated with a specific Lead, ordered by
+      date (supports "what's the next step with Maria?")
       (`visitas.list_visitas_by_lead`)
 
 ---
 
-## Notas em aberto para revisão
+## Open notes for review
 
-- **Pesquisa por nome/morada:** implementada como correspondência parcial
-  case-insensitive (fórmula Airtable `SEARCH(LOWER(...), LOWER(...))`).
-  Continua por decidir se isto chega, ou se é preciso lidar com erros de
-  dicionário/dictation (acentos, variações fonéticas) — ainda não
-  testado com dictation real.
-- Nenhuma story aqui cobre o Context Middleware em si (resolver
-  Lead/Imóvel mencionados no texto antes do LLM correr, ou o que fazer
-  com múltiplos resultados de pesquisa) — isso pertence à Epic 02, usando
-  as funções de pesquisa daqui.
-- Validação de campos, tratamento de erros da API e paginação continuam
-  fora de âmbito, tal como planeado. Isolamento de dados de teste não
-  tem uma estratégia formal (não há base Airtable de sandbox — os testes
-  de integração correm contra a base real), mas cada teste que cria um
-  registo limpa-o a seguir (fixture `cleanup`/`finally`); confirmado
-  sem registos órfãos após várias execuções.
+- **Search by name/address:** implemented as case-insensitive partial
+  matching (Airtable formula `SEARCH(LOWER(...), LOWER(...))`). Still
+  undecided whether this is enough, or whether dictation/spelling errors
+  (accents, phonetic variants) need handling — not yet tested with real
+  dictation.
+- No story here covers the Context Middleware itself (resolving
+  Lead/Property mentions in the text before the LLM runs, or what to do
+  with multiple search results) — that belongs to Epic 02, using the
+  search functions built here.
+- Field validation, API error handling, and pagination remain out of
+  scope, as planned. Test-data isolation has no formal strategy (there's
+  no sandbox Airtable base — integration tests run against the real one),
+  but every test that creates a record cleans it up afterwards
+  (`cleanup`/`finally` fixture); confirmed no orphaned records after
+  several runs.

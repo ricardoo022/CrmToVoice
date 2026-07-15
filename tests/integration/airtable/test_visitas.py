@@ -6,6 +6,7 @@ from requests.exceptions import HTTPError
 
 from crmToVoice.airtable import visitas
 from crmToVoice.airtable.client import get_table
+from crmToVoice.models import VisitFields
 
 
 def _unique_name(prefix: str) -> str:
@@ -117,6 +118,22 @@ def test_list_visitas_by_lead_returns_only_matching_lead(lead_id, visita_id):
             visitas.delete_visita(other_visita["id"])
     finally:
         get_table("Leads").delete(other_lead["id"])
+
+
+def test_create_visita_accepts_visit_fields_dump_by_alias(lead_id):
+    payload = VisitFields(
+        resumo="US-AG-01 Contract",
+        lead=[lead_id],
+    ).model_dump(by_alias=True, exclude_none=True)
+
+    created = visitas.create_visita(payload)
+
+    try:
+        assert created["fields"]["Resumo"] == "US-AG-01 Contract"
+        assert created["fields"]["Lead"] == [lead_id]
+        assert created["fields"]["Tipo"] == "Visita"
+    finally:
+        visitas.delete_visita(created["id"])
 
 
 def test_list_visitas_by_lead_orders_results_by_date(lead_id, visita_id):

@@ -1,5 +1,7 @@
 # db
 
-Holds the SQLite checkpointer file at runtime (local dev only, per
-`docs/superpowers/specs/2026-07-14-agent-runtime-design.md`). Not source — the file
-only appears once the agent has actually run.
+| File | Purpose |
+|---|---|
+| `checkpoints.db` (not committed, created at runtime) | SQLite file backing the LangGraph checkpointer (`AsyncSqliteSaver`, local dev only). See `docs/superpowers/specs/2026-07-14-agent-runtime-design.md` §3. |
+
+No source files live here — this directory only exists to hold that runtime file.
