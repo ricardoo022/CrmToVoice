@@ -28,6 +28,7 @@ packages = ["src/crmToVoice"]
 dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
+    "python-dotenv>=1.2.2",
     "ruff>=0.15.21",
 ]
 
