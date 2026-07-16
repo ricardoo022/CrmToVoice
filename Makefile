@@ -39,9 +39,21 @@ typecheck: ## Verifica tipos com pyright
 
 check: lint typecheck test ## Corre lint + typecheck + testes
 
+##@ Airtable (manual)
+
+airtable-add: ## Cria um Lead + Imóvel + Visita ligados entre si no Airtable, com todos os campos preenchidos
+	uv run python scripts/airtable_manage.py add
+
+airtable-delete: ## Apaga um registo (TABLE=leads|imoveis|visitas ID=recXXXXXXXXXXXXXX) ou TODOS os registos das 3 tabelas se não indicares nenhum (pede confirmação)
+	@if [ -n "$(TABLE)$(ID)" ] && { [ -z "$(TABLE)" ] || [ -z "$(ID)" ]; }; then \
+		echo "Uso: make airtable-delete TABLE=leads|imoveis|visitas ID=recXXXXXXXXXXXXXX (ou nenhum, para apagar tudo)"; \
+		exit 1; \
+	fi
+	uv run python scripts/airtable_manage.py delete $(TABLE) $(ID)
+
 ##@ Limpeza
 
 clean: ## Remove o .venv
 	rm -rf .venv
 
-.PHONY: help setup dev test test-unit test-integration lint format typecheck check clean
+.PHONY: help setup dev test test-unit test-integration lint format typecheck check airtable-add airtable-delete clean

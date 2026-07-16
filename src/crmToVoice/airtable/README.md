@@ -11,5 +11,5 @@ Epic 01, done. Plain data-access layer for the Airtable base "CRM Imobiliário (
 | `visitas.py` | `create_visita` (validates `fields["Lead"]` is set), `list_visitas_by_lead` (fetches all, filters client-side — no server-side formula for linked-record IDs) over the Visitas (Visits) table. |
 
 Consumed by Epic 02's `agents/tools/` (writes/reads at the end of a path) and
-`agents/middleware/` (search, before the LLM runs) — this package never talks
+Epic 03's `agents/nodes/` (search, before the LLM runs) — this package never talks
 to LangChain/LangGraph itself.

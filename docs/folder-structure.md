@@ -19,11 +19,10 @@ CrmToVoice/
 │   ├── Agent.md                       — LangGraph agent design: AgentState, graph shape, interrupt()/resume, node-to-file map (§9)
 │   ├── siri-shortcut-integration.md   — iPhone Shortcut side (dictation, webhook call, response parsing)
 │   ├── folder-structure.md            — this file
-│   ├── superpowers/specs/
-│   │   └── 2026-07-14-agent-runtime-design.md   — runtime decisions (LLM, hosting, checkpointer, payload) + epic sequencing
 │   └── backlog/epics/                 — one file per epic, checkboxed acceptance criteria
 │       ├── epic-01-database.md        — ✅ done
-│       └── epic-02-agent-foundations.md — ✅ done
+│       ├── epic-02-agent-foundations.md — ✅ done
+│       └── epic-03-graph-core-read-path.md — 🚧 draft
 │
 ├── src/
 │   ├── webhook.py                     — ⚠️ stray empty stub, NOT the real one — ignore it. The actual
@@ -51,17 +50,13 @@ CrmToVoice/
 │       │   └── visitas.py             —   create/read/update/delete/query over Visitas (Visits) — same note
 │       │
 │       └── agents/                    — 🔲 Epic 02+ — the graph's nodes, split by role
-│           ├── middleware/            —   deterministic Context Middleware: resolves Lead/Property mentions
-│           │                             against Airtable *before* the LLM runs; read-only, uses
-│           │                             `airtable/leads.py::search_leads` + `airtable/imoveis.py::search_imoveis`
-│           ├── tools/                 —   wraps `airtable/` as the graph's write/read boundary — used only
-│           │                             at the *end* of a path (create/update/delete/query), never to search
-│           └── catalog/
-│               └── crmAgent/          —   the four intent paths (Agent.md §5)
-│                   ├── create.py      —     the only path with the missing-field wizard
-│                   ├── read.py        —     read-only, never writes
-│                   ├── update.py      —     direct field updates, except `Estado`/Status (asks "why?" first)
-│                   └── delete.py      —     always requires explicit confirmation before deleting
+│           ├── tools/                 — ✅ Epic 02 — wraps `airtable/` as the graph's write/read boundary,
+│           │                             used only at the end of a node group (create/update/delete/query)
+│           └── nodes/                 — 🔲 Epic 03+ — every StateGraph node function (the single
+│                                         router, which also absorbs context lookup, the four intent
+│                                         handlers, the final response node); no files yet, see
+│                                         `nodes/README.md`. `graph.py` is the only file that calls
+│                                         `add_node`/`add_edge`/`add_conditional_edges`.
 │
 ├── tests/
 │   ├── unit/                          — external services mocked/faked, fast, no credentials
@@ -117,8 +112,8 @@ already-real identifiers that this repo doesn't control:
   its own decision, not folded silently into a docs-translation pass.
 
 Everything else — prose, Epic 02+ design vocabulary (`AgentState` fields,
-node names, file names like `create.py`), and epic/backlog documents — is
-English, including where it wasn't before.
+node names), and epic/backlog documents — is English, including where it
+wasn't before.
 
 ## Built vs planned, at a glance
 
@@ -127,8 +122,8 @@ English, including where it wasn't before.
 | `airtable/` (data access) | ✅ done | 01 |
 | `models/` (Pydantic schemas) | ✅ done | 02 |
 | `agents/tools/`, LLM config | ✅ done | 02 |
-| `agents/middleware/` + routers + `read.py` | 🔲 not started | 03 |
-| `agents/catalog/crmAgent/create.py` | 🔲 not started | 04 |
-| `agents/catalog/crmAgent/update.py` | 🔲 not started | 05 |
-| `agents/catalog/crmAgent/delete.py` | 🔲 not started | 06 |
-| `webhook.py` | 🔲 not started | 07 |
+| `agents/nodes/` — graph core + read path | 🔲 not started | 03 |
+| `webhook.py` | 🔲 not started | 04 |
+| `agents/nodes/` — delete path | 🔲 not started | 05 |
+| `agents/nodes/` — update path | 🔲 not started | 06 |
+| `agents/nodes/` — create path | 🔲 not started | 07 |
