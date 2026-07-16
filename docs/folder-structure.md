@@ -23,7 +23,7 @@ CrmToVoice/
 │   │   └── 2026-07-14-agent-runtime-design.md   — runtime decisions (LLM, hosting, checkpointer, payload) + epic sequencing
 │   └── backlog/epics/                 — one file per epic, checkboxed acceptance criteria
 │       ├── epic-01-database.md        — ✅ done
-│       └── epic-02-agent-foundations.md — 🔲 next up
+│       └── epic-02-agent-foundations.md — ✅ done
 │
 ├── src/
 │   ├── webhook.py                     — ⚠️ stray empty stub, NOT the real one — ignore it. The actual
@@ -32,7 +32,7 @@ CrmToVoice/
 │   └── crmToVoice/                    — the one installable package
 │       ├── __init__.py
 │       ├── graph.py                   — 🔲 StateGraph wiring (compiles the graph `langgraph.json` points at)
-│       ├── config.py                  — 🔲 settings (OpenRouter model, etc.), read from env
+│       ├── config.py                  — ✅ Epic 02 — OpenRouter model/chat-client config, read from env
 │       ├── webhook.py                 — 🔲 FastAPI adapter; exposes `POST /webhook` matching the Shortcut's
 │       │                                 `{session_id, text}` → `{session_id, reply_text, done}` contract;
 │       │                                 talks to `langgraph dev`'s own API internally
@@ -125,8 +125,8 @@ English, including where it wasn't before.
 | Area | Status | Epic |
 |---|---|---|
 | `airtable/` (data access) | ✅ done | 01 |
-| `models/` (Pydantic schemas) | 🔲 not started | 02 |
-| `agents/tools/`, LLM config | 🔲 not started | 02 |
+| `models/` (Pydantic schemas) | ✅ done | 02 |
+| `agents/tools/`, LLM config | ✅ done | 02 |
 | `agents/middleware/` + routers + `read.py` | 🔲 not started | 03 |
 | `agents/catalog/crmAgent/create.py` | 🔲 not started | 04 |
 | `agents/catalog/crmAgent/update.py` | 🔲 not started | 05 |

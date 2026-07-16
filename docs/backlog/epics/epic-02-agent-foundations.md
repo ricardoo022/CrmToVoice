@@ -1,6 +1,7 @@
 # Epic 02 — Agent Foundations
 
-**Status: 🔲 Not started.**
+**Status: ✅ Done (2026-07-16).** All three user stories (US-AG-01, US-AG-02,
+US-AG-03) complete.
 
 **Goal:** have the shared pieces that every later agent epic (03 —
 Minimal graph + Read, 04 — Create, 05 — Update, 06 — Delete) will depend
@@ -126,18 +127,34 @@ Speech" node
 So that switching models means changing an env var, not code — decision
 already made in `2026-07-14-agent-runtime-design.md` §1
 
+**Status: ✅ Done (2026-07-16).** Implemented in `src/crmToVoice/config.py`
+(`get_openrouter_model()`, `get_chat_model()`), with unit tests in
+`tests/unit/test_config.py`. `make lint`, `uv run ruff format --check .`,
+`make typecheck`, `make test-unit` all pass: 83 unit tests (5 new, no
+regressions).
+
 **Acceptance Criteria:**
 
-- [ ] `config.py` exposes the OpenRouter model to use, read from an
+- [x] `config.py` exposes the OpenRouter model to use, read from an
   ```
   environment variable (e.g. `OPENROUTER_MODEL`), with no model value
   hardcoded in any node's code
   ```
-- [ ] `.env.example` updated with the new variable
-- [ ] A reusable chat-model client/wrapper — so it isn't reimplemented in
+- [x] `.env.example` updated with the new variable
+  ```
+  (already present from an earlier pass — `OPENROUTER_API_KEY` and
+  `OPENROUTER_MODEL` were both already there, unused until now)
+  ```
+- [x] A reusable chat-model client/wrapper — so it isn't reimplemented in
   ```
   every node that needs an LLM (today just `interpret_speech`, but
   potentially `read_format_response` too in Epic 03)
+  ```
+  ```
+  `get_chat_model()` is an `lru_cache`d factory returning a `ChatOpenAI`
+  instance pointed at OpenRouter's base URL (`langchain_openai.ChatOpenAI`
+  is OpenAI-API-compatible, which is what OpenRouter exposes) — mirrors
+  the `airtable/client.py::get_api()` caching pattern from Epic 01.
   ```
 
 ---
