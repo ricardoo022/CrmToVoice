@@ -44,73 +44,82 @@ Shortcut to the CRM (see `CRM.md` for the data structure and actions).
 Webhook (receives message + session_id)
         │
         ▼
-Context Middleware ── looks up names/addresses mentioned in the CRM, attaches found data
+Router 2 / interpret_speech ── a single node, built on LangChain's
+                                 `create_agent`, bound to read-only search
+                                 tools (search_leads/search_imoveis); it
+                                 decides for itself whether a name/address
+                                 mention is worth looking up in the CRM
         │
         ▼
-Agent (LangGraph, already with CRM context attached)
+Deterministic dispatch on `intent` (Create/Read/Update/Delete)
 ```
 
-**Context Middleware** — a deterministic layer (no LLM), separate from
-the agent's reasoning. Receives the message, identifies name/address
-candidates mentioned, fetches the matching records from Airtable (if they
-exist), and hands them already resolved to the agent. Runs on **every**
-message, new session or continuing one — it never decides anything about
-intent, it only enriches the state with real CRM data so the agent
-doesn't have to guess or hallucinate.
+**No separate Router 1, no separate Context Middleware.** There is only
+one router. Earlier drafts of this design had a deterministic Router 1
+whose only job was checking `pending_question` to tell a fresh turn from
+a continuation — that node is gone. Router 2 (`interpret_speech`) is built
+on LangChain's `create_agent` prebuilt agent constructor, which already
+carries conversation state across turns via the checkpointer/thread; "is
+this new or a reply to a pending question" is just part of the
+conversation the agent already sees, not a separate pre-check. The same
+node also absorbs what would have been a deterministic context-resolution
+layer: it has `search_leads`/`search_imoveis` bound as tools and decides,
+per turn, whether the input mentions a Lead/Property worth looking up,
+calling the search tool(s) if it judges that useful, and folding whatever
+it finds into the same structured output (`intent`, `target_entity`,
+`extracted_fields`) that the dispatch after it reads.
 
-The agent never goes directly to Airtable to **search** for things — it
-receives data already resolved by the middleware. It only touches
-Airtable again at the end of each path, to write (create/update/delete)
-or to query (read).
+The agent still never *writes* to Airtable except at the end of a path —
+the tools bound to this node are read-only (`search_leads`/
+`search_imoveis`), so giving it discretion over *when* to search carries
+none of the write-duplication risk that discretion over create/update/
+delete would (see §6).
 
 ---
 
 ## 4. Shared state (State)
 
+Canonical source: `src/crmToVoice/models/state.py` (`Intent`/`TargetEntity` are
+`Literal` type aliases, not `Enum` — reused verbatim by `interpretation.py`).
+
 ```python
-class AgentState:
-    session_id: str
-    current_input: str              # last text received (initial sentence or answer to a question)
-    intent: str                     # create | read | update | delete
-    target_entity: str              # Lead | Visit | Property
-    crm_context: dict                # records resolved by the middleware (lead/property found)
-    extracted_fields: dict           # accumulates over the course of the session
-    skipped_fields: list[str]        # fields the person said "I don't know" to (only relevant in Create)
-    pending_question: str | None    # question currently awaiting an answer
-    awaiting_delete_confirmation: bool
-    final_response: str | None
+class AgentState(BaseModel):
+    session_id: str                      # thread_id — one per Shortcut execution; indexes the checkpointer
+    current_input: str                   # last text received (initial sentence or answer to a question)
+    intent: Intent | None                # create | read | update | delete — set by interpret_speech
+    target_entity: TargetEntity | None   # Lead | Visit | Property — set by interpret_speech
+    crm_context: dict                    # records Router 2 resolved via its own search tool calls, if it decided to look any up
+    extracted_fields: dict               # accumulates over the course of the session (merged explicitly per turn — no automatic reducer, see §6)
+    skipped_fields: list[str]            # fields the person said "I don't know" to (only relevant in Create)
+    pending_question: str | None         # question currently awaiting an answer via interrupt(); non-None tells interpret_speech/Router 2 this turn is a resume
+    awaiting_delete_confirmation: bool   # set by delete_confirm right before its interrupt(); must be True for a "yes" reply to trigger the delete
+    final_response: str | None           # reply sent back through the webhook; read by the webhook adapter, not by graph nodes
 ```
 
 ---
 
-## 5. Graph — two routers + four paths
+## 5. Graph — one router + four paths
 
 ```
 [input: text + session_id]
         │
         ▼
- Router 1 — new session or continuing?
+ Interpret Speech / Router 2 (single node, built on LangChain's
+ create_agent, bound to read-only search_leads/search_imoveis tools;
+ it decides for itself whether to look anything up, then returns
+ intent + entity + extracted fields — a deterministic dispatch on
+ `intent` picks the path. Runs on every turn — new session or a reply
+ to a pending_question, the agent's own conversation state via the
+ checkpointer already tells it which)
         │
-        ├─ continuing (there was a pending_question) ──► merges answer into extracted_fields
-        │                                              and resumes the path it was in (without
-        │                                              re-classifying intent)
-        │
-        └─ new
-              │
-              ▼
-        Interpret Speech (1 LLM call: intent + entity + extracted fields)
-              │
-              ▼
-        Router 2 — which action?
-              │
-   ┌──────────┼──────────┬──────────┐
-   ▼          ▼          ▼          ▼
- CREATE      READ       UPDATE     DELETE
+   ┌────┼──────────┬──────────┐
+   ▼    ▼          ▼          ▼
+ CREATE READ      UPDATE     DELETE
 ```
 
 ### CREATE path
 ```
-CRM context (middleware) already attached
+CRM context (if Router 2 looked anything up) already attached
         │
         ▼
 Are required fields missing? (classification in CRM.md §3)
@@ -172,9 +181,12 @@ CRM context (must find the record)
 LangGraph's `interrupt()` halts graph execution mid-way (a question or
 confirmation node), the checkpointer saves the state associated with the
 `thread_id`. When the Shortcut's next call arrives (same session, with
-the person's answer), Router 1 recognizes the session is continuing and
-the graph resumes exactly at that point — without going back through
-Router 2.
+the person's answer), the graph runs through `interpret_speech`/Router 2
+again — it's the single entry point, always runs, and (being built on
+`create_agent`) already has the prior turns in its conversation state, so
+it doesn't need a separate node to tell a fresh turn from a continuation.
+Whatever search tool calls it decides to make that turn happen here too,
+and dispatch lands back on the same path it paused in.
 
 **Implementation rule — idempotency before `interrupt()`:** when a node
 resumes after an `interrupt()`, all code *before* that call runs again
@@ -187,12 +199,15 @@ row. Because of that:
 - **No Airtable write (create/update/delete) may happen before the last
   `interrupt()` in a path resolves.** Concretely: "check whether the Lead
   already exists → otherwise, create a new lead" (`CRM.md` §2.1) may only
-  run inside `create_write`, never inside `resolve_context` or
+  run inside `create_write`, never inside `interpret_speech` or
   `create_check_fields`/`create_ask` — otherwise every wizard follow-up
   question would create a duplicate Lead.
-- `resolve_context` (the middleware) may only read/search, never create
-  records — this follows the general rule already documented, but is made
-  explicit here because of the duplication risk.
+- `interpret_speech`'s bound tools (`search_leads`/`search_imoveis`) are
+  read-only — it is never given a create/update/delete tool, so no matter
+  how many times the agent decides to search across repeated re-entries
+  before the path's last `interrupt()`, there is no duplication risk. This
+  is a hard constraint on which tools this node is ever given, not just a
+  convention.
 - The same is already well designed in the Update path:
   `update_create_visit` (creates the Visit/Note) runs **after** the
   "why?" `interrupt()`, not before — keep this order when implementing.
@@ -213,8 +228,6 @@ row. Because of that:
 ---
 
 ## 8. Runtime decisions (current phase: local development only)
-
-Resolved in `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`:
 
 - **LLM**: called via **OpenRouter** (model abstraction) — no specific
   model pinned, it's a config value.
@@ -242,10 +255,7 @@ code — still without picking the LLM or the hosting (section 8).
 
 | Node | Type | Does |
 |---|---|---|
-| `session_router` | deterministic | Reads `pending_question` from the state. If it exists, skips `interpret_speech` and `action_router` — goes straight to resuming the active path with the new `current_input` merged into `extracted_fields`. |
-| `interpret_speech` | LLM (1 call) | Receives `current_input` (+ session history). Returns `intent`, `target_entity`, `extracted_fields` (structured output). Only runs on a new session. |
-| `resolve_context` | deterministic (middleware) | Receives extracted name/address candidates, searches Airtable, fills `crm_context`. Always runs, new session or continuing. |
-| `action_router` | deterministic | Reads `intent` and dispatches to one of the 4 subgraphs: `create_*`, `read_*`, `update_*`, `delete_*`. |
+| `interpret_speech` (a.k.a. Router 2 — the only router) | LLM agent built on LangChain's `create_agent`, bound to read-only tools (`search_leads`/`search_imoveis`) | Receives `current_input` (+ session history from the checkpointer — no separate node needed to tell new vs. continuing, `create_agent` already carries that). Decides for itself whether the input mentions a Lead/Property worth looking up and calls the search tool(s) if so, folding any match into `crm_context`. Returns `intent`, `target_entity`, `extracted_fields` (structured output). The same node's conditional edge then reads `intent` and dispatches to one of the 4 subgraphs: `create_*`, `read_*`, `update_*`, `delete_*`. Runs on every turn, new or continuing. |
 | `create_check_fields` | deterministic | Compares `extracted_fields` against the entity's "asked if missing" list (`CRM.md` §3), excluding `skipped_fields`. |
 | `create_ask` | deterministic + `interrupt()` | Generates the grouped question (`CRM.md` §4), sets `pending_question`, pauses. |
 | `create_write` | deterministic (Airtable tool) | Creates the record (Lead/Visit/Property) in Airtable. Sets `final_response`. |
@@ -263,45 +273,51 @@ code — still without picking the LLM or the hosting (section 8).
 
 ```mermaid
 flowchart TD
-    Start([Input: text + session_id]) --> R1{Router 1\ncontinuing session?}
+    Start([Input: text + session_id]) --> LLM[interpret_speech / Router 2\nsingle node — LangChain create_agent\nw/ read-only search tools\nintent + target_entity + extracted_fields\nruns every turn; conversation state via\nthe checkpointer tells it new vs. continuing]
+    LLM --> R2{which action?}
 
-    R1 -->|yes, there was a pending question| Merge[Merge answer into state]
-    R1 -->|no, new session| LLM[Interpret Speech\nintent + extracted fields]
-
-    Merge --> Resolve[Resolve Context\nCRM middleware]
-    LLM --> Resolve
-    Resolve --> R2{Router 2\nwhich action?}
-
-    R2 -->|Create| Missing{Required fields\nmissing?}
-    Missing -->|yes| AskCreate[Grouped question]
+    R2 -->|Create| Missing{create_check_fields\nRequired fields missing?}
+    Missing -->|yes| AskCreate[create_ask\nGrouped question]
     AskCreate --> Pause1[["⏸ pause (interrupt)"]]
-    Pause1 -.next call, same session.-> R1
-    Missing -->|no| WriteCreate[Create record in Airtable]
+    Pause1 -.next call, same session.-> LLM
+    Missing -->|no| WriteCreate[create_write\nCreate record in Airtable]
     WriteCreate --> Respond
 
-    R2 -->|Read| Query[Query Airtable]
-    Query --> Format[Format response in natural language]
+    R2 -->|Read| Query[read_query\nQuery Airtable]
+    Query --> Format[read_format_response\nFormat response in natural language]
     Format --> Respond
 
-    R2 -->|Update| Found1{Record\nfound?}
+    R2 -->|Update| Found1{update_check_target\nRecord found?}
     Found1 -->|no| NotFound[Responds: not found] --> Respond
-    Found1 -->|yes| ChangesStatus{Changes\nStatus?}
-    ChangesStatus -->|yes| AskWhy[Asks: why?]
+    Found1 -->|yes| ChangesStatus{Changes Status?}
+    ChangesStatus -->|yes, reason\nnot given yet| AskWhy[update_ask_why\nAsks: why?]
     AskWhy --> Pause2[["⏸ pause (interrupt)"]]
-    Pause2 -.next call, same session.-> R1
-    ChangesStatus -->|no| UpdateDirect[Updates mentioned fields]
+    Pause2 -.next call, same session.-> LLM
+    ChangesStatus -->|yes, reason\nnow known| CreateVisit[update_create_visit\nCreates Visit Type=Note, Summary=reason\nLead Status updates as side effect]
+    CreateVisit --> Respond
+    ChangesStatus -->|no, factual\ncorrection| UpdateDirect[update_write_direct\nUpdates only mentioned fields]
     UpdateDirect --> Respond
 
-    R2 -->|Delete| Found2{Record\nfound?}
+    R2 -->|Delete| Found2{delete_confirm\nRecord found?}
     Found2 -->|no| NotFound
-    Found2 -->|yes| Confirm[Asks for confirmation]
+    Found2 -->|yes, not yet\nconfirmed| Confirm[Asks for confirmation]
     Confirm --> Pause3[["⏸ pause (interrupt)"]]
-    Pause3 -.next call, same session.-> R1
+    Pause3 -.next call, same session.-> LLM
+    Found2 -->|yes, confirmed| DeleteExec[delete_execute\nDeletes record]
+    DeleteExec --> Respond
+    Found2 -->|yes, denied\nor ambiguous| Cancel[Cancels — nothing deleted]
+    Cancel --> Respond
 
-    Respond([Respond — end of cycle])
+    Respond([respond — end of cycle])
 ```
 
 The dashed lines (`-.->`) show what happens when the Shortcut calls the
-webhook again within the same session: it re-enters through Router 1,
-which recognizes the pending question and routes back to the right point
-— never starts over from scratch.
+webhook again within the same session: it re-enters through
+`interpret_speech`/Router 2 — the single entry point — and runs the full
+graph again, landing back on the same path it paused in. Once back on that
+path, the node re-checks its own condition against the now-updated state
+— e.g. `update_check_target` sees the reason is now in `extracted_fields`
+and goes straight to `update_create_visit` instead of asking "why?" again;
+`delete_confirm` sees `awaiting_delete_confirmation` was already `True`
+and routes the person's answer to `delete_execute` or the cancel branch
+instead of re-asking for confirmation.

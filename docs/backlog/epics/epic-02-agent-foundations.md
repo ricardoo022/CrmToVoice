@@ -12,9 +12,8 @@ without this first.
 **Out of scope for this epic:** the `StateGraph` itself (no node, no
 router, no compiled graph — that's Epic 03), any of the four paths
 (Create/Read/Update/Delete), the `checkpointer`/`langgraph.json` (already
-decided in `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`
-§3, but only actually used starting in Epic 03), and the webhook
-(Epic 07).
+decided in `docs/Agent.md` §8, but only actually used starting in
+Epic 03), and the webhook (Epic 07).
 
 **Depends on:** Epic 01 (`src/crmToVoice/airtable/` — `client.py`,
 `leads.py`, `imoveis.py`, `visitas.py`), already done.
@@ -108,7 +107,7 @@ for the agent, and never the Airtable API directly
 - [x] Covers search by name/address (`search_leads`/`search_imoveis`),
   ```
   already identified in `docs/backlog/epics/epic-01-database.md` as
-  used by the future Context Middleware (Epic 03)
+  used by `interpret_speech`/Router 2's own tool-calling (Epic 03)
   ```
 - [x] Unit tests with the Airtable layer mocked (reusing the mocks already
   ```
@@ -172,6 +171,6 @@ Epic 03.
 - Whether `agents/tools/` should expose one function per table
 (Lead/Property/Visit) or per cross-cutting action (e.g. "resolve a name
 mention") isn't settled yet — to decide while writing the code, but
-name/address search and disambiguation itself belongs to the Context
-Middleware (Epic 03), not this epic.
+name/address search and disambiguation itself belongs to Router 2
+(`interpret_speech`)'s own tool-calling (Epic 03), not this epic.
 

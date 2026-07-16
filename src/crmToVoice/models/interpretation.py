@@ -5,9 +5,11 @@ Design rationale:
 - This is the structured-output schema the (not-yet-built) `interpret_speech`
   LLM node (`docs/Agent.md` §9) will be bound to. It's deliberately separate
   from `AgentState` — this is the LLM's *output contract* for one call, not
-  the graph's running state. A later epic's `session_router` will copy these
-  three values into `AgentState`, and only on a new session (`docs/Agent.md`
-  §9: `interpret_speech` "Only runs on a new session").
+  the graph's running state. There is no separate router node that copies
+  these three values in: `interpret_speech`/Router 2 is the single entry
+  point every turn runs through (`docs/Agent.md` §9: "Runs on every turn,
+  new or continuing"), and folds this structured output straight into
+  `AgentState` itself.
 - `extracted_fields` stays a generic `dict[str, Any]` here rather than one of
   `LeadFields`/`PropertyFields`/`VisitFields`, because `target_entity` —
   which determines which of those three field-shapes would even apply — is

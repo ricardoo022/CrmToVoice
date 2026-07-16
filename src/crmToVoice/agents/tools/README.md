@@ -16,8 +16,10 @@ a tool lives in.
 | `imoveis.py` | `create_imovel`, `update_imovel`, `delete_imovel`, `search_imoveis`, `get_imovel` |
 | `visitas.py` | `create_visita`, `update_visita`, `delete_visita`, `get_visita`, `list_visitas_by_date_range`, `list_visitas_by_lead` |
 
-`search_leads`/`search_imoveis` are included too, even though they're consumed by the future
-Context Middleware (Epic 03) rather than a Create/Read/Update/Delete path node directly.
+`search_leads`/`search_imoveis` are included too, even though they're consumed by
+`interpret_speech`/Router 2 (Epic 03) — as tools that agent binds and calls at its own
+discretion to resolve name/address mentions — rather than by a Create/Read/Update/Delete
+path node directly.
 
 Since every function is `@tool`-decorated, callers invoke them as LangChain tools, not as plain
 functions — e.g. `create_lead.invoke({"fields": {...}})`, not `create_lead({...})`.

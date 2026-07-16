@@ -1,8 +1,8 @@
 # Siri Shortcut integration — how it actually works
 
 Plain factual reference for building the iPhone side of the flow described in
-`docs/Agent.md` and `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`
-(request `{session_id, text}`, response `{session_id, reply_text, done}`).
+`docs/Agent.md` (see §8 for the runtime decisions and the exact request
+`{session_id, text}` / response `{session_id, reply_text, done}` payload).
 Facts below are sourced from Apple's own Shortcuts documentation and
 established community references (linked inline). Anything not confirmed by
 a source is marked **unconfirmed**.

@@ -135,10 +135,10 @@ So that this supports logging visits, correcting a wrongly logged visit
   undecided whether this is enough, or whether dictation/spelling errors
   (accents, phonetic variants) need handling — not yet tested with real
   dictation.
-- No story here covers the Context Middleware itself (resolving
-  Lead/Property mentions in the text before the LLM runs, or what to do
-  with multiple search results) — that belongs to Epic 02, using the
-  search functions built here.
+- No story here covers resolving Lead/Property mentions in the text
+  before the LLM runs (or what to do with multiple search results) — that
+  belongs to Router 2 (`interpret_speech`)'s own tool-calling (Epic 03),
+  using the search functions built here.
 - Field validation, API error handling, and pagination remain out of
   scope, as planned. Test-data isolation has no formal strategy (there's
   no sandbox Airtable base — integration tests run against the real one),
