@@ -9,4 +9,4 @@ must stay that way per the idempotency-before-`interrupt()` rule.
 Uses the search functions from the Epic 01 data-access layer (`airtable/leads.py::search_leads`,
 `airtable/imoveis.py::search_imoveis`) — the only place in the agent allowed to call them.
 
-No files exist here yet (Epic 02+, not built) — the per-file breakdown isn't decided yet.
+No files exist here yet (Epic 03+, not built) — the per-file breakdown isn't decided yet.

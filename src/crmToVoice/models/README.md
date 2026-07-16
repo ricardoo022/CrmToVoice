@@ -1,6 +1,6 @@
 # models
 
-Every Pydantic model used by the agent, in one place. Not a separate installable package: this
+**Epic 02, done.** Every Pydantic model used by the agent, in one place. Not a separate installable package: this
 repo is a single `pyproject.toml`, not a multi-package monorepo, so this is just a subpackage of
 `crmToVoice`. See `docs/folder-structure.md` for the reasoning.
 

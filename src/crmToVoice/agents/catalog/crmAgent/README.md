@@ -1,6 +1,6 @@
 # crmAgent
 
-The four intent paths (`docs/Agent.md` §5). None of these files exist yet (Epic 02+, not built).
+The four intent paths (`docs/Agent.md` §5). None of these files exist yet (Epic 04+, not built).
 
 | File (planned) | Purpose |
 |---|---|
