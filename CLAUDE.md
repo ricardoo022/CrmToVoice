@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Design is complete; implementation proceeds epic-by-epic (`docs/backlog/epics/`, each with checkboxed acceptance criteria):
 
 - **Epic 01 (Database) — done.** `src/crmToVoice/airtable/` (`client.py`, `leads.py`, `imoveis.py`, `visitas.py`): plain create/read/update/delete/search functions over Airtable, no LangChain/agent concerns. See `docs/backlog/epics/epic-01-database.md`.
-- **Epic 02 (Agent Foundations) — not started.** `models/` (all Pydantic schemas — `AgentState`, per-entity field models, the `interpret_speech` structured-output schema), `agents/tools/` (wraps `airtable/` for the graph), LLM config. See `docs/backlog/epics/epic-02-agent-foundations.md` and `docs/folder-structure.md`.
+- **Epic 02 (Agent Foundations) — in progress.** `src/crmToVoice/models/` (`state.py`, `fields.py`, `interpretation.py`) is done (US-AG-01): `AgentState`, per-entity field models (`LeadFields`/`PropertyFields`/`VisitFields`), and the `Interpretation` structured-output schema for the future `interpret_speech` node. Still not started: `agents/tools/` (wraps `airtable/` for the graph, US-AG-02) and `config.py` (OpenRouter LLM config, US-AG-03). See `docs/backlog/epics/epic-02-agent-foundations.md` and `docs/folder-structure.md`.
 - Everything past that (the actual `StateGraph`, the four intent paths, the webhook) is further out. `src/crmToVoice/graph.py` and `src/webhook.py` currently exist as empty stub files — note `src/webhook.py` is *not* the path `Dockerfile.webhook`/the architecture expect (`crmToVoice.webhook:app`, i.e. `src/crmToVoice/webhook.py`); don't assume the stray top-level one is meaningful.
 
 The design docs under `docs/` are authoritative and should be read before writing any code:
@@ -56,6 +56,13 @@ Local multi-service run: `docker compose up` builds `Dockerfile.langgraph` (the 
 - Airtable quirk worth knowing: fetching a deleted record raises `requests.exceptions.HTTPError` from a **403**, not a 404.
 - Unit tests mock at `patch.object(<module>, "get_table", ...)`; integration tests hit the real base and use a `cleanup` fixture (register created record → delete in teardown) since there's no sandbox base.
 - Note on naming: `imoveis.py`/`visitas.py` and their function/parameter names (`create_imovel`, `search_leads(nome)`, etc.) use Portuguese entity names because that's what Epic 01 was actually written and tested against — renaming them is a source-code refactor of shipped, CI-passing work, tracked separately rather than done as a docs-only change.
+
+### Pydantic models (`src/crmToVoice/models/`, done — Epic 02 US-AG-01)
+
+- `AgentState` (`state.py`) is a plain Pydantic `BaseModel`, not yet wired into a `StateGraph`. `Intent`/`TargetEntity` are `Literal` type aliases (not `Enum`), reused verbatim by `interpretation.py` — don't redefine equivalent literals elsewhere.
+- Deliberate non-decision to remember: no automatic LangGraph reducer (e.g. `Annotated[dict, operator.or_]`) on `extracted_fields`/`skipped_fields`, even once this becomes real `StateGraph` state. Reasoning ties back to the idempotency-before-`interrupt()` constraint below — an automatic additive reducer would double-apply a merge every time a node re-runs before its *next* `interrupt()` resolves. Merging across turns must be explicit, node-owned logic instead.
+- `Interpretation` (`interpretation.py`) is the future `interpret_speech` LLM node's structured-output contract — deliberately separate from `AgentState` (the LLM's per-call output, not the graph's running state) and keeps `extracted_fields` as a generic `dict`, since `target_entity` (which would determine the field shape) is itself part of the same structured output.
+- `LeadFields`/`PropertyFields`/`VisitFields` (`fields.py`) represent a possibly-partial record accumulated across wizard turns, not a guaranteed-complete Airtable row. Every field has both a Python attribute name and an Airtable-literal alias (`validation_alias`/`serialization_alias`, with `populate_by_name=True`); callers must dump with `.model_dump(by_alias=True, exclude_none=True)` — never the bare `.model_dump()` — to get Airtable-ready dicts for `create_*`/`update_*` in the Epic 01 layer.
 
 ### Planned agent layering (Epic 02+, not built yet — see `docs/Agent.md`)
 

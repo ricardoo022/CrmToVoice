@@ -20,6 +20,8 @@ decided in `docs/superpowers/specs/2026-07-14-agent-runtime-design.md`
 
 ---
 
+
+
 ## US-AG-01 — Pydantic models (`models/`)
 
 As a developer
@@ -43,33 +45,47 @@ tests (pure, no I/O) in `tests/unit/models/`. `uv run ruff format --check .`,
 **Acceptance Criteria:**
 
 - [x] `src/crmToVoice/models/__init__.py` re-exports the public models of
-      the subpackage, so the rest of the code imports from
-      `crmToVoice.models` without knowing which file each model lives in
+  ```
+  the subpackage, so the rest of the code imports from
+  `crmToVoice.models` without knowing which file each model lives in
+  ```
 - [x] `AgentState` (Pydantic `BaseModel`) with the fields from `Agent.md`
-      §4: `session_id`, `current_input`, `intent`, `target_entity`,
-      `crm_context`, `extracted_fields`, `skipped_fields`,
-      `pending_question`, `awaiting_delete_confirmation`,
-      `final_response`
+  ```
+  §4: `session_id`, `current_input`, `intent`, `target_entity`,
+  `crm_context`, `extracted_fields`, `skipped_fields`,
+  `pending_question`, `awaiting_delete_confirmation`,
+  `final_response`
+  ```
 - [x] Per-entity field models (`LeadFields`, `PropertyFields`,
-      `VisitFields`), typed from the tables in `CRM.md` §1, to replace the
-      loose `dict`s that `crm_context`/`extracted_fields` would otherwise
-      use
+  ```
+  `VisitFields`), typed from the tables in `CRM.md` §1, to replace the
+  loose `dict`s that `crm_context`/`extracted_fields` would otherwise
+  use
+  ```
 - [x] Structured-output schema for the `interpret_speech` node
-      (`Agent.md` §9: "structured output" — `intent` + `target_entity` +
-      `extracted_fields`), as its own Pydantic model, separate from
-      `AgentState`
+  ```
+  (`Agent.md` §9: "structured output" — `intent` + `target_entity` +
+  `extracted_fields`), as its own Pydantic model, separate from
+  `AgentState`
+  ```
 - [x] Merge behavior across turns documented and made explicit for the
-      fields on `AgentState` that accumulate (`extracted_fields`,
-      `skipped_fields`) — decide whether they use a LangGraph reducer
-      (`Annotated[..., operator.add]` or equivalent) or whether the merge
-      is done by hand inside the nodes; see the idempotency note in
-      `Agent.md` §6 before picking an automatic reducer on a field that
-      might be touched before an `interrupt()`
+  ```
+  fields on `AgentState` that accumulate (`extracted_fields`,
+  `skipped_fields`) — decide whether they use a LangGraph reducer
+  (`Annotated[..., operator.add]` or equivalent) or whether the merge
+  is done by hand inside the nodes; see the idempotency note in
+  `Agent.md` §6 before picking an automatic reducer on a field that
+  might be touched before an `interrupt()`
+  ```
 - [x] Unit test that instantiates `AgentState` with the minimum set of
-      fields and confirms the defaults (`pending_question=None`,
-      `awaiting_delete_confirmation=False`, `skipped_fields=[]`)
+  ```
+  fields and confirms the defaults (`pending_question=None`,
+  `awaiting_delete_confirmation=False`, `skipped_fields=[]`)
+  ```
 
 ---
+
+
 
 ## US-AG-02 — Agent tools over the Airtable layer
 
@@ -81,18 +97,26 @@ for the agent, and never the Airtable API directly
 
 **Acceptance Criteria:**
 
-- [ ] One "tool" function per operation the four paths will need directly
-      — mapped 1:1 or aggregated from the functions already built in
-      Epic 01, without duplicating business logic (validating required
-      fields, wizard rules, etc. stay in the path nodes, not here — this
-      layer is only the graph↔data boundary)
-- [ ] Covers search by name/address (`search_leads`/`search_imoveis`),
-      already identified in `docs/backlog/epics/epic-01-database.md` as
-      used by the future Context Middleware (Epic 03)
-- [ ] Unit tests with the Airtable layer mocked (reusing the mocks already
-      used in `tests/unit/airtable/`)
+- [x] One "tool" function per operation the four paths will need directly
+  ```
+  — mapped 1:1 or aggregated from the functions already built in
+  Epic 01, without duplicating business logic (validating required
+  fields, wizard rules, etc. stay in the path nodes, not here — this
+  layer is only the graph↔data boundary)
+  ```
+- [x] Covers search by name/address (`search_leads`/`search_imoveis`),
+  ```
+  already identified in `docs/backlog/epics/epic-01-database.md` as
+  used by the future Context Middleware (Epic 03)
+  ```
+- [x] Unit tests with the Airtable layer mocked (reusing the mocks already
+  ```
+  used in `tests/unit/airtable/`)
+  ```
 
 ---
+
+
 
 ## US-AG-03 — LLM configuration (OpenRouter)
 
@@ -105,25 +129,32 @@ already made in `2026-07-14-agent-runtime-design.md` §1
 **Acceptance Criteria:**
 
 - [ ] `config.py` exposes the OpenRouter model to use, read from an
-      environment variable (e.g. `OPENROUTER_MODEL`), with no model value
-      hardcoded in any node's code
+  ```
+  environment variable (e.g. `OPENROUTER_MODEL`), with no model value
+  hardcoded in any node's code
+  ```
 - [ ] `.env.example` updated with the new variable
 - [ ] A reusable chat-model client/wrapper — so it isn't reimplemented in
-      every node that needs an LLM (today just `interpret_speech`, but
-      potentially `read_format_response` too in Epic 03)
+  ```
+  every node that needs an LLM (today just `interpret_speech`, but
+  potentially `read_format_response` too in Epic 03)
+  ```
 
 ---
 
+
+
 ## Open notes for review
 
-- ~~`TypedDict` vs `dataclass` vs Pydantic for `AgentState`~~ — resolved:
-  Pydantic, for every model in `models/` (see US-AG-01 and
-  `docs/folder-structure.md`).
+- `TypedDict` ~~vs~~ `dataclass` ~~vs Pydantic for~~ `AgentState` — resolved:
+Pydantic, for every model in `models/` (see US-AG-01 and
+`docs/folder-structure.md`).
 - No story here covers actual LLM calls in a graph context — only
-  configuration/client. The first real use of `interpret_speech` is in
-  Epic 03.
+configuration/client. The first real use of `interpret_speech` is in
+Epic 03.
 - Whether `agents/tools/` should expose one function per table
-  (Lead/Property/Visit) or per cross-cutting action (e.g. "resolve a name
-  mention") isn't settled yet — to decide while writing the code, but
-  name/address search and disambiguation itself belongs to the Context
-  Middleware (Epic 03), not this epic.
+(Lead/Property/Visit) or per cross-cutting action (e.g. "resolve a name
+mention") isn't settled yet — to decide while writing the code, but
+name/address search and disambiguation itself belongs to the Context
+Middleware (Epic 03), not this epic.
+

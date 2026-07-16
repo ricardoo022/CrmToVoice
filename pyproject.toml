@@ -41,6 +41,9 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.pytest.ini_options]
+addopts = "--import-mode=importlib"
+
 [tool.pyright]
 include = ["src", "tests"]
 pythonVersion = "3.10"
