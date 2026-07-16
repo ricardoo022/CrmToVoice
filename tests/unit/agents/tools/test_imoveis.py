@@ -54,3 +54,22 @@ def test_get_imovel_calls_airtable_and_returns_result():
 
     mock_fn.assert_called_once_with("rec1")
     assert result == mock_result
+
+
+def test_search_imoveis_returns_empty_list_when_no_matches():
+    with patch.object(airtable_imoveis, "search_imoveis", return_value=[]) as mock_fn:
+        result = imoveis.search_imoveis.invoke({"morada": "inexistente"})
+
+    mock_fn.assert_called_once_with("inexistente")
+    assert result == []
+
+
+def test_get_imovel_passes_through_record_with_empty_visitas():
+    mock_result = {"id": "rec1", "fields": {"Morada": "Rua X"}, "visitas": []}
+
+    with patch.object(airtable_imoveis, "get_imovel", return_value=mock_result) as mock_fn:
+        result = imoveis.get_imovel.invoke({"record_id": "rec1"})
+
+    mock_fn.assert_called_once_with("rec1")
+    assert result == mock_result
+    assert result["visitas"] == []

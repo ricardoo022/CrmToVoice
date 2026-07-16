@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from crmToVoice.agents.tools import visitas
 from crmToVoice.airtable import visitas as airtable_visitas
@@ -24,6 +25,15 @@ def test_create_visita_propagates_value_error_when_lead_missing():
     """Test that create_visita tool propagates ValueError from airtable when Lead is missing."""
     with pytest.raises(ValueError, match="Lead"):
         visitas.create_visita.invoke({"fields": {"Resumo": "sem lead"}})
+
+
+def test_create_visita_never_reaches_airtable_when_lead_missing():
+    """The Lead-missing ValueError must be raised before any Airtable table access happens."""
+    with patch.object(airtable_visitas, "get_table") as mock_get_table:
+        with pytest.raises(ValueError, match="Lead"):
+            visitas.create_visita.invoke({"fields": {"Resumo": "sem lead"}})
+
+    mock_get_table.assert_not_called()
 
 
 def test_update_visita_passes_through_to_airtable():
@@ -88,3 +98,34 @@ def test_list_visitas_by_lead_passes_through_to_airtable():
 
     mock_list.assert_called_once_with("recLead1")
     assert result == fake_records
+
+
+def test_list_visitas_by_date_range_coerces_iso_strings_to_datetime():
+    """LLM tool calls arrive as JSON, so start/end are ISO strings, not datetime objects;
+    the inferred arg schema must coerce them before calling the airtable layer, which
+    requires real datetime objects (it calls datetime_to_iso_str on them)."""
+    fake_records = [{"id": "recVisita1", "fields": {}}]
+
+    with patch.object(
+        airtable_visitas, "list_visitas_by_date_range", return_value=fake_records
+    ) as mock_list:
+        result = visitas.list_visitas_by_date_range.invoke(
+            {"start": "2026-07-15T00:00:00", "end": "2026-07-16T00:00:00"}
+        )
+
+    mock_list.assert_called_once_with(
+        datetime(2026, 7, 15, 0, 0, 0), datetime(2026, 7, 16, 0, 0, 0)
+    )
+    called_start, called_end = mock_list.call_args[0]
+    assert isinstance(called_start, datetime)
+    assert isinstance(called_end, datetime)
+    assert result == fake_records
+
+
+def test_create_visita_rejects_non_dict_fields():
+    """The inferred arg schema should actually validate `fields` as a dict, not accept anything."""
+    with patch.object(airtable_visitas, "create_visita") as mock_fn:
+        with pytest.raises(ValidationError):
+            visitas.create_visita.invoke({"fields": ["not", "a", "dict"]})
+
+    mock_fn.assert_not_called()
