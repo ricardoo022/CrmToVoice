@@ -5,7 +5,7 @@ This is a **single-package repository**, not a multi-package monorepo: one
 image (`Dockerfile.webhook`) does `uv sync` and serves the webhook via
 `uvicorn crmToVoice.webhook:app`.
 
-Legend: ✅ built · 🔲 planned (Tag 2+) · 📝 Tag 1 in progress
+Legend: ✅ built · 🔲 planned (Tag 2) · 🏗️ in progress
 
 ```
 CrmToVoice/
@@ -18,22 +18,24 @@ CrmToVoice/
 │   └── backlog/epics/                 — one file per epic, checkboxed acceptance criteria
 │       ├── epic-01-database.md        — ✅ done
 │       ├── epic-02-agent-foundations.md — ✅ done
-│       └── epic-03-tag-1-single-agent.md — 🏗️ in progress (Tag 1 MVP)
+│       ├── epic-03-tag-1-single-agent.md — ✅ agent done; 🏗️ eval suite tracking known prompt gaps
+│       └── epic-04-siri-integration.md — 🏗️ webhook done; Siri Shortcut itself (US-SI-02) not started
 │
 ├── src/
 │   └── crmToVoice/                    — the one installable package
 │       ├── __init__.py
 │       ├── config.py                  — ✅ Epic 02 — OpenRouter model/chat-client config, read from env
-│       ├── webhook.py                 — 📝 FastAPI adapter; exposes `POST /webhook` matching the Shortcut's
-│       │                                 `{session_id, text}` → `{session_id, reply_text, done}` contract;
-│       │                                 creates the agent, invokes it, returns the response
-│       ├── graph.py                   — 🔲 empty stub (Tag 2+ — adds StateGraph when multi-node needed)
+│       ├── webhook.py                 — ✅ Epic 04 — FastAPI adapter; exposes `POST /webhook` matching the
+│       │                                 Shortcut's `{session_id, text}` → `{session_id, reply_text, done}`
+│       │                                 contract; owns per-session history since the agent is stateless
+│       ├── graph.py                   — 🔲 empty stub (Tag 2 — adds StateGraph when multi-node needed)
 │       │
-│       ├── models/                    — ✅ Epic 02 — every Pydantic model, one subpackage
+│       ├── models/                    — ✅ Epic 02 — every Pydantic model, one subpackage; reserved for
+│       │   │                             Tag 2, not used by the Tag 1 agent
 │       │   ├── __init__.py            —   re-exports the public models
-│       │   ├── state.py               —   `AgentState` (available for Tag 2; not used directly in Tag 1)
+│       │   ├── state.py               —   `AgentState`
 │       │   ├── fields.py              —   `LeadFields` / `PropertyFields` / `VisitFields`
-│       │   └── interpretation.py      —   structured-output schema (available for Tag 2)
+│       │   └── interpretation.py      —   structured-output schema
 │       │
 │       ├── airtable/                  — ✅ Epic 01 — plain data-access layer, no LangChain/agent concerns
 │       │   ├── client.py              —   cached `pyairtable` connection (`get_api()`, `get_table()`)
@@ -41,27 +43,37 @@ CrmToVoice/
 │       │   ├── imoveis.py             —   create/read/update/delete/search over Imóveis (Properties)
 │       │   └── visitas.py             —   create/read/update/delete/query over Visitas (Visits)
 │       │
-│       └── agents/                    — ✅ Epic 02 (tools), 📝 Tag 1 (agent), 🔲 Tag 2 (nodes)
+│       └── agents/                    — ✅ Epic 02 (tools), ✅ Tag 1 (catalog), 🔲 Tag 2 (nodes)
 │           ├── tools/                 — ✅ all 18 @tool-decorated functions (read + write)
 │           ├── catalog/
-│           │   └── interpret_speech/  — 📝 the single agent factory; Tag 1 binds ALL tools
+│           │   └── interpret_speech/  — ✅ the single agent factory; binds ALL 18 tools, no
+│           │                             structured output
 │           └── nodes/                 — 🔲 not needed until Tag 2 adds StateGraph paths
+│
+├── scripts/
+│   └── eval_all_tools_agent.py        — 🏗️ LangSmith eval suite for the Tag 1 agent (`make eval-all-tools`);
+│                                          real create/read/update/delete outcomes, not classification
 │
 ├── tests/
 │   ├── unit/                          — external services mocked/faked, fast, no credentials
-│   │   └── airtable/                  — ✅ Epic 01 tests
+│   │   ├── airtable/                  — ✅ Epic 01 tests
+│   │   ├── agents/catalog/interpret_speech/ — ✅ Tag 1 agent + prompt tests
+│   │   └── test_webhook.py            — ✅ Epic 04 webhook tests (agent mocked)
 │   └── integration/                   — hits real Airtable/OpenRouter; runs locally and in CI
 │       ├── conftest.py                — auto-loads `.env` locally, never overrides real env vars (CI-safe)
-│       └── airtable/                  — ✅ real Airtable base, cleans up every record it creates
+│       ├── airtable/                  — ✅ real Airtable base, cleans up every record it creates
+│       ├── agents/catalog/interpret_speech/ — ✅ real create/read/update/delete round-trips
+│       └── test_webhook.py            — ✅ real webhook round-trip
 │
-├── db/                                — 🔲 holds the SQLite checkpointer file at runtime (local dev only);
-│                                          not source, only appears once the agent has actually run
+├── db/                                — 🔲 will hold the Tag 2 SQLite checkpointer file at runtime;
+│                                          not used by Tag 1 (stateless agent, no checkpointer)
 │
+├── .github/workflows/ci.yml           — quality (lint/typecheck/unit) + integration + docker-build jobs
 ├── docker-compose.yml                 — single `webhook` service (port 8000)
 ├── Dockerfile.webhook                 — runs `uvicorn crmToVoice.webhook:app`
 ├── pyproject.toml                     — the one and only package definition (name: `crmtovoice`)
 ├── uv.lock
-├── Makefile                           — `make setup|dev|lint|format|typecheck|test-unit|test-integration|test|check`
+├── Makefile                           — `make setup|dev|lint|format|typecheck|test-unit|test-integration|test|check|eval-all-tools`
 └── CLAUDE.md                          — instructions for Claude Code working in this repo
 ```
 
@@ -102,8 +114,9 @@ node names), and epic/backlog documents — is English.
 | Area | Status | Epic |
 |---|---|---|
 | `airtable/` (data access) | ✅ done | 01 |
-| `models/` (Pydantic schemas) | ✅ done | 02 |
+| `models/` (Pydantic schemas) | ✅ done, reserved for Tag 2 | 02 |
 | `agents/tools/`, LLM config | ✅ done | 02 |
-| Single all-tools agent | 📝 in progress | 03 (Tag 1) |
-| `webhook.py` (FastAPI) | 📝 in progress | 03 (Tag 1) |
+| Single all-tools agent | ✅ done; eval suite tracking known prompt gaps | 03 (Tag 1) |
+| `webhook.py` (FastAPI) | ✅ done | 04 (Tag 1) |
+| iPhone Shortcut (US-SI-02) | 🔲 not started | 04 (Tag 1) |
 | Multi-node graph + wizard + confirm | 🔲 planned | Tag 2 |

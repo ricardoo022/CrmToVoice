@@ -46,8 +46,9 @@ Field real estate agents who spend their day visiting properties and meeting cli
 This project is being built piece by piece:
 
 - **Done** — the data layer: the part that actually reads and writes to the CRM.
-- **In progress** — the "brain": the part that understands what the agent said and decides what to do about it.
-- **Not started yet** — the Siri connection: wiring this up to actually work from an iPhone.
+- **Done** — the "brain": a single agent that understands what was said and acts on the CRM directly (create/read/update/delete), plus the webhook that exposes it over HTTP.
+- **In progress** — quality: an eval suite already caught a couple of real gaps (e.g. the agent doesn't *always* search before creating, or *always* skip asking for confirmation on an update) that are being worked through.
+- **Not started yet** — the Siri connection itself: the iPhone Shortcut that actually dictates to the webhook and speaks the reply back.
 
 For technical details (how it's built, how to run it) see `CLAUDE.md`. For the full product design, see the `docs/` folder.
 

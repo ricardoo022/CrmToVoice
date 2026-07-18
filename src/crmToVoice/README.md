@@ -4,11 +4,12 @@
 |---|---|
 | `__init__.py` (empty) | Marks `crmToVoice` as a package. |
 | `airtable/` | Epic 01, done. The Airtable data-access layer — see `airtable/README.md`. |
-| `models/` | Epic 02, done. Every Pydantic model used by the agent — see `models/README.md`. |
-| `agents/` | Epic 02 (`tools/`) done, Epic 03+ (`nodes/`) not built yet. The LangGraph agent — see `agents/README.md`. |
-| `graph.py` (empty stub) | Will define the compiled `StateGraph` (graph key `crmAgent` in `langgraph dev`). Not built yet. |
-| `config.py` | Epic 02, done. `get_openrouter_model()` (reads `OPENROUTER_MODEL`, no model hardcoded) and `get_chat_model()` (`lru_cache`d `ChatOpenAI` client pointed at OpenRouter, keyed by `OPENROUTER_API_KEY`) — the reusable client future LLM nodes (`interpret_speech`, `read_format_response`) call instead of each reimplementing it. |
-| `webhook.py` (not yet created) | Planned FastAPI adapter exposing the graph to the iPhone Shortcut (`crmToVoice.webhook:app`). Doesn't exist as a file yet. |
+| `models/` | Epic 02, done. Every Pydantic model — built for Tag 2, not used by the Tag 1 agent (which replies with free text, not structured output) — see `models/README.md`. |
+| `agents/` | Epic 02 (`tools/`) done, Tag 1 (`catalog/`) done, Tag 2 (`nodes/`) not built yet — see `agents/README.md`. |
+| `config.py` | Epic 02, done. `get_openrouter_model()` (reads `OPENROUTER_MODEL`, no model hardcoded) and `get_chat_model()` (`lru_cache`d `ChatOpenAI` client pointed at OpenRouter, keyed by `OPENROUTER_API_KEY`) — the reusable client every LLM caller (`agents/catalog/interpret_speech`) uses instead of each reimplementing it. |
+| `webhook.py` | Tag 1, done. FastAPI adapter (`POST /webhook`) exposing the all-tools agent to the iPhone Shortcut — see `docs/Agent.md` (Tag 1 section). |
+| `graph.py` (empty stub) | Tag 2. Will define the compiled `StateGraph` once the multi-node design is built. Not built yet. |
 
-See `docs/Agent.md` for the full design, including §8 for the runtime decisions
-(LLM provider, hosting, checkpointer, payload format).
+See `docs/Agent.md` for the full design — the Tag 1 section covers the
+current single-agent + webhook flow; the Tag 2 section covers the future
+multi-node graph.

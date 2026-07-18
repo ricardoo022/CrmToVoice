@@ -1,15 +1,15 @@
 # nodes
 
-Every StateGraph node function described in `docs/Agent.md` §9 — the single router
-(`interpret_speech`/Router 2, which also absorbs context lookup — no separate deterministic step),
-and the four intent handlers (create/read/update/delete), plus the shared final-response node.
-No distinction in kind is made between these: the router and an intent handler are both just plain
-functions. `graph.py` (`src/crmToVoice/graph.py`) is the only file that calls
-`add_node`/`add_edge`/`add_conditional_edges` — nothing here decides graph structure.
+**Tag 2 only — not needed by, or used in, Tag 1.** In Tag 1, `webhook.py` calls
+`agents/catalog/interpret_speech`'s factory directly; there's no `StateGraph` and no router/path
+split. This folder stays empty until Tag 2 builds the multi-node graph described in `docs/Agent.md`
+(Tag 2 section): a router node (read-only tools, structured `Interpretation` output) plus four
+intent-handler nodes (create/update/delete/read) with `interrupt()`-based wizard/confirmation, and
+a shared final-response node. `graph.py` (`src/crmToVoice/graph.py`) would be the only file that
+calls `add_node`/`add_edge`/`add_conditional_edges` — nothing here would decide graph structure.
 
-Where a node is backed by an LLM agent (`interpret_speech`), the agent itself is built in
-`agents/catalog/` (e.g. `create_interpret_speech_agent()`) — the node function here calls that
-factory, invokes the agent, and merges its structured output into `AgentState`, rather than
-constructing the agent inline.
+Where a Tag 2 node is backed by an LLM agent (e.g. a router), the agent itself would still be built
+in `agents/catalog/` — the node function here would call that factory, invoke the agent, and merge
+its structured output into `AgentState`, rather than constructing the agent inline.
 
-No files exist here yet (Epic 03+, not built) — the per-file breakdown isn't decided yet.
+No files exist here yet — the per-file breakdown isn't decided (Tag 2, not started).
