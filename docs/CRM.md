@@ -68,8 +68,10 @@ of the system.
 
 ## 2. Actions a person can trigger by voice
 
-These are the intents the LangGraph agent must recognize from speech and
-translate into CRM operations.
+These are the intents the agent must recognize from speech and translate
+into CRM operations. The current Tag 1 `interpret_speech` agent
+(`docs/Agent.md`, Tag 1 section) implements this catalog directly — one
+agent, all 18 tools, no separate router/path per action.
 
 ### Create
 
@@ -159,6 +161,14 @@ translate into CRM operations.
 ---
 
 ## 4. Guided dialogue (wizard) mechanism
+
+**Tag 2 vision.** This structured, `interrupt()`-driven wizard (grouped
+questions, the exact rules below) is the target design for Tag 2. Tag 1's
+prompt implements the same *goal* — ask only for what's actually missing,
+never insist — but conversationally, via plain LLM judgment rather than
+this literal mechanism (no forced grouping, no `interrupt()`-based pause):
+see `docs/backlog/epics/epic-03-tag-1-single-agent.md` (US-T1-01) and
+`agents/catalog/interpret_speech/prompt.py` §4.
 
 When fields that require a question are missing, the agent doesn't ask one
 by one without criteria — it groups by topic to reduce the number of

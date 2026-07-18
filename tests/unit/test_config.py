@@ -37,6 +37,7 @@ def test_get_chat_model_builds_client_from_env_vars(monkeypatch):
         model="openai/gpt-4o-mini",
         api_key=SecretStr("fake-key"),
         base_url=config.OPENROUTER_BASE_URL,
+        temperature=0,
     )
 
 

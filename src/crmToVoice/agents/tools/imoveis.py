@@ -32,3 +32,24 @@ def search_imoveis(morada: str) -> list[RecordDict]:
 def get_imovel(record_id: str) -> dict:
     """Get an Imóvel (property) record by ID, including expanded Visitas."""
     return _imoveis.get_imovel(record_id)
+
+
+@tool
+def find_imovel(morada: str) -> dict:
+    """Find a Property by address and return the full record with visit history.
+
+    Use this when you need to find an existing Property by address and see its
+    details including all linked visits. Combines search + get in one call.
+
+    Args:
+        morada: The Property's address to search for (partial match, case-insensitive)
+
+    Returns:
+        A dict with "found" (bool) and, if found, the full Property record
+        including "visitas" (list of expanded Visit records).
+    """
+    imoveis = _imoveis.search_imoveis(morada)
+    if not imoveis:
+        return {"found": False, "imovel": None, "visitas": []}
+    full_imovel = _imoveis.get_imovel(imoveis[0]["id"])
+    return {"found": True, **full_imovel}

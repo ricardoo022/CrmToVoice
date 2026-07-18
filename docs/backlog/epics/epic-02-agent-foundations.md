@@ -3,17 +3,12 @@
 **Status: ✅ Done (2026-07-16).** All three user stories (US-AG-01, US-AG-02,
 US-AG-03) complete.
 
-**Goal:** have the shared pieces that every later agent epic (03 —
-Minimal graph + Read, 04 — Create, 05 — Update, 06 — Delete) will depend
-on: the graph's state schema, the "tools" the nodes will call to talk to
-Airtable, and the LLM configuration. None of those epics can move forward
-without this first.
+**Goal:** have the shared pieces that the agent (Tag 1 / Epic 03) depends
+on: the "tools" the agent will call to talk to Airtable, the Pydantic
+models, and the LLM configuration.
 
-**Out of scope for this epic:** the `StateGraph` itself (no node, no
-router, no compiled graph — that's Epic 03), any of the four paths
-(Create/Read/Update/Delete), the `checkpointer`/`langgraph.json` (already
-decided in `docs/Agent.md` §8, but only actually used starting in
-Epic 03), and the webhook (Epic 07).
+**Out of scope for this epic:** the agent itself (Epic 03 / Tag 1), the
+webhook (Epic 03 / Tag 1), the `StateGraph` (Tag 2).
 
 **Depends on:** Epic 01 (`src/crmToVoice/airtable/` — `client.py`,
 `leads.py`, `imoveis.py`, `visitas.py`), already done.
@@ -165,12 +160,11 @@ regressions).
 - `TypedDict` ~~vs~~ `dataclass` ~~vs Pydantic for~~ `AgentState` — resolved:
 Pydantic, for every model in `models/` (see US-AG-01 and
 `docs/folder-structure.md`).
-- No story here covers actual LLM calls in a graph context — only
-configuration/client. The first real use of `interpret_speech` is in
-Epic 03.
-- Whether `agents/tools/` should expose one function per table
-(Lead/Property/Visit) or per cross-cutting action (e.g. "resolve a name
-mention") isn't settled yet — to decide while writing the code, but
-name/address search and disambiguation itself belongs to Router 2
-(`interpret_speech`)'s own tool-calling (Epic 03), not this epic.
+- The first real use of `interpret_speech` is in Epic 03 / Tag 1 (but as an
+all-tools agent, not the original read-only router design).
+- `models/state.py` (`AgentState`), `models/interpretation.py`
+(`Interpretation`), and `models/fields.py` (`LeadFields` etc.) were built
+for the original multi-node architecture. Tag 1 doesn't use them directly
+(the agent responds with free text, not structured output), but they remain
+available for Tag 2.
 

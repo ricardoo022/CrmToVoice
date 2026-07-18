@@ -1,83 +1,79 @@
 # Folder structure
 
 This is a **single-package repository**, not a multi-package monorepo: one
-`pyproject.toml`, one `uv.lock`, one Python dependency graph. The two Docker
-images (`Dockerfile.langgraph`, `Dockerfile.webhook`) both `uv sync` the same
-lockfile and just run a different entrypoint (`langgraph dev` vs
-`uvicorn crmToVoice.webhook:app`) — they are not separately-versioned
-packages, so there is no need for the "extract shared types into their own
-installable package" pattern that monorepos use. Anything shared between
-the two just lives in the one `crmToVoice` package and gets imported
-directly.
+`pyproject.toml`, one `uv.lock`, one Python dependency graph. The Docker
+image (`Dockerfile.webhook`) does `uv sync` and serves the webhook via
+`uvicorn crmToVoice.webhook:app`.
 
-Legend: ✅ built · 🔲 planned (README-only stub today)
+Legend: ✅ built · 🔲 planned (Tag 2) · 🏗️ in progress
 
 ```
 CrmToVoice/
 ├── docs/                              — design docs, authoritative; read before writing code
 │   ├── CRM.md                         — Airtable data model + voice-action catalog (Create/Read/Update/Delete)
-│   ├── Agent.md                       — LangGraph agent design: AgentState, graph shape, interrupt()/resume, node-to-file map (§9)
+│   ├── Agent.md                       — Agent design: Tag 1 single-agent approach, Tag 2 vision
 │   ├── siri-shortcut-integration.md   — iPhone Shortcut side (dictation, webhook call, response parsing)
 │   ├── folder-structure.md            — this file
+│   ├── interpret-speech-eval-findings.md — Tag 1 eval results against the all-tools agent
 │   └── backlog/epics/                 — one file per epic, checkboxed acceptance criteria
 │       ├── epic-01-database.md        — ✅ done
 │       ├── epic-02-agent-foundations.md — ✅ done
-│       └── epic-03-graph-core-read-path.md — 🚧 draft
+│       ├── epic-03-tag-1-single-agent.md — ✅ agent done; 🏗️ eval suite tracking known prompt gaps
+│       └── epic-04-siri-integration.md — 🏗️ webhook done; Siri Shortcut itself (US-SI-02) not started
 │
 ├── src/
-│   ├── webhook.py                     — ⚠️ stray empty stub, NOT the real one — ignore it. The actual
-│   │                                     webhook lives at `src/crmToVoice/webhook.py` (`crmToVoice.webhook:app`,
-│   │                                     what `Dockerfile.webhook` actually runs)
 │   └── crmToVoice/                    — the one installable package
 │       ├── __init__.py
-│       ├── graph.py                   — 🔲 StateGraph wiring (compiles the graph `langgraph.json` points at)
 │       ├── config.py                  — ✅ Epic 02 — OpenRouter model/chat-client config, read from env
-│       ├── webhook.py                 — 🔲 FastAPI adapter; exposes `POST /webhook` matching the Shortcut's
-│       │                                 `{session_id, text}` → `{session_id, reply_text, done}` contract;
-│       │                                 talks to `langgraph dev`'s own API internally
+│       ├── webhook.py                 — ✅ Epic 04 — FastAPI adapter; exposes `POST /webhook` matching the
+│       │                                 Shortcut's `{session_id, text}` → `{session_id, reply_text, done}`
+│       │                                 contract; owns per-session history since the agent is stateless
+│       ├── graph.py                   — 🔲 empty stub (Tag 2 — adds StateGraph when multi-node needed)
 │       │
-│       ├── models/                    — 🔲 Epic 02 — every Pydantic model, one subpackage, no separate pyproject.toml
+│       ├── models/                    — ✅ Epic 02 — every Pydantic model, one subpackage; reserved for
+│       │   │                             Tag 2, not used by the Tag 1 agent
 │       │   ├── __init__.py            —   re-exports the public models
-│       │   ├── state.py               —   `AgentState` (the shared graph state, Agent.md §4)
-│       │   ├── fields.py              —   `LeadFields` / `PropertyFields` / `VisitFields` (typed field sets, CRM.md §1)
-│       │   └── interpretation.py      —   structured-output schema for the `interpret_speech` LLM node
+│       │   ├── state.py               —   `AgentState`
+│       │   ├── fields.py              —   `LeadFields` / `PropertyFields` / `VisitFields`
+│       │   └── interpretation.py      —   structured-output schema
 │       │
 │       ├── airtable/                  — ✅ Epic 01 — plain data-access layer, no LangChain/agent concerns
 │       │   ├── client.py              —   cached `pyairtable` connection (`get_api()`, `get_table()`)
 │       │   ├── leads.py               —   create/read/update/delete/search over Leads
-│       │   ├── imoveis.py             —   create/read/update/delete/search over Imóveis (Properties) — module/function
-│       │   │                             names stay Portuguese, matching the live Airtable table; see note below
-│       │   └── visitas.py             —   create/read/update/delete/query over Visitas (Visits) — same note
+│       │   ├── imoveis.py             —   create/read/update/delete/search over Imóveis (Properties)
+│       │   └── visitas.py             —   create/read/update/delete/query over Visitas (Visits)
 │       │
-│       └── agents/                    — 🔲 Epic 02+ — the graph's nodes, split by role
-│           ├── tools/                 — ✅ Epic 02 — wraps `airtable/` as the graph's write/read boundary,
-│           │                             used only at the end of a node group (create/update/delete/query)
-│           └── nodes/                 — 🔲 Epic 03+ — every StateGraph node function (the single
-│                                         router, which also absorbs context lookup, the four intent
-│                                         handlers, the final response node); no files yet, see
-│                                         `nodes/README.md`. `graph.py` is the only file that calls
-│                                         `add_node`/`add_edge`/`add_conditional_edges`.
+│       └── agents/                    — ✅ Epic 02 (tools), ✅ Tag 1 (catalog), 🔲 Tag 2 (nodes)
+│           ├── tools/                 — ✅ all 18 @tool-decorated functions (read + write)
+│           ├── catalog/
+│           │   └── interpret_speech/  — ✅ the single agent factory; binds ALL 18 tools, no
+│           │                             structured output
+│           └── nodes/                 — 🔲 not needed until Tag 2 adds StateGraph paths
+│
+├── scripts/
+│   └── eval_all_tools_agent.py        — 🏗️ LangSmith eval suite for the Tag 1 agent (`make eval-all-tools`);
+│                                          real create/read/update/delete outcomes, not classification
 │
 ├── tests/
 │   ├── unit/                          — external services mocked/faked, fast, no credentials
-│   │   └── airtable/                  — ✅ mocks `get_table`/`get_records_by_ids` via `patch.object`
+│   │   ├── airtable/                  — ✅ Epic 01 tests
+│   │   ├── agents/catalog/interpret_speech/ — ✅ Tag 1 agent + prompt tests
+│   │   └── test_webhook.py            — ✅ Epic 04 webhook tests (agent mocked)
 │   └── integration/                   — hits real Airtable/OpenRouter; runs locally and in CI
 │       ├── conftest.py                — auto-loads `.env` locally, never overrides real env vars (CI-safe)
-│       └── airtable/                  — ✅ real Airtable base, cleans up every record it creates
+│       ├── airtable/                  — ✅ real Airtable base, cleans up every record it creates
+│       ├── agents/catalog/interpret_speech/ — ✅ real create/read/update/delete round-trips
+│       └── test_webhook.py            — ✅ real webhook round-trip
 │
-├── db/                                — 🔲 holds the SQLite checkpointer file at runtime (local dev only);
-│                                          not source, only appears once the agent has actually run
+├── db/                                — 🔲 will hold the Tag 2 SQLite checkpointer file at runtime;
+│                                          not used by Tag 1 (stateless agent, no checkpointer)
 │
-├── langgraph.json                     — points `langgraph dev` at `graph.py:graph`; also where the
-│                                          checkpointer factory gets wired in (see the runtime spec §3) —
-│                                          `langgraph dev` ignores `compile(checkpointer=...)`, so this file
-│                                          is the actual place a custom checkpointer gets configured
-├── docker-compose.yml                 — `graph` (port 2024) + `webhook` (port 8000) services
-├── Dockerfile.langgraph               — runs `langgraph dev`
+├── .github/workflows/ci.yml           — quality (lint/typecheck/unit) + integration + docker-build jobs
+├── docker-compose.yml                 — single `webhook` service (port 8000)
 ├── Dockerfile.webhook                 — runs `uvicorn crmToVoice.webhook:app`
 ├── pyproject.toml                     — the one and only package definition (name: `crmtovoice`)
 ├── uv.lock
-├── Makefile                           — `make setup|dev|lint|format|typecheck|test-unit|test-integration|test|check`
+├── Makefile                           — `make setup|dev|lint|format|typecheck|test-unit|test-integration|test|check|eval-all-tools`
 └── CLAUDE.md                          — instructions for Claude Code working in this repo
 ```
 
@@ -87,12 +83,11 @@ A monorepo splits shared types into their own installable package (e.g. a
 `packages/shared-types` with its own `pyproject.toml`) when two or more
 **separately deployable, separately versioned** services need to share a
 type without importing each other's code wholesale. That problem doesn't
-exist here: `graph.py` (running inside `langgraph dev`) and `webhook.py`
-(running under `uvicorn`) are two processes, but they both come from the
-same package install (`uv sync` against the one `uv.lock`) — a plain
-`import crmToVoice.models` works identically for both, no packaging
-boundary needed. `models/` is just an organizational subpackage, the same
-role a `schemas/` folder plays in a typical single-service FastAPI project.
+exist here: everything runs inside the `webhook.py` process (Tag 1), or
+within a single `langgraph dev` process (Tag 2) — there are never two
+separately deployed services sharing a type. `models/` is just an
+organizational subpackage, the same role a `schemas/` folder plays in a
+typical single-service FastAPI project.
 
 ## Why some things stay in Portuguese
 
@@ -112,18 +107,16 @@ already-real identifiers that this repo doesn't control:
   its own decision, not folded silently into a docs-translation pass.
 
 Everything else — prose, Epic 02+ design vocabulary (`AgentState` fields,
-node names), and epic/backlog documents — is English, including where it
-wasn't before.
+node names), and epic/backlog documents — is English.
 
 ## Built vs planned, at a glance
 
 | Area | Status | Epic |
 |---|---|---|
 | `airtable/` (data access) | ✅ done | 01 |
-| `models/` (Pydantic schemas) | ✅ done | 02 |
+| `models/` (Pydantic schemas) | ✅ done, reserved for Tag 2 | 02 |
 | `agents/tools/`, LLM config | ✅ done | 02 |
-| `agents/nodes/` — graph core + read path | 🔲 not started | 03 |
-| `webhook.py` | 🔲 not started | 04 |
-| `agents/nodes/` — delete path | 🔲 not started | 05 |
-| `agents/nodes/` — update path | 🔲 not started | 06 |
-| `agents/nodes/` — create path | 🔲 not started | 07 |
+| Single all-tools agent | ✅ done; eval suite tracking known prompt gaps | 03 (Tag 1) |
+| `webhook.py` (FastAPI) | ✅ done | 04 (Tag 1) |
+| iPhone Shortcut (US-SI-02) | 🔲 not started | 04 (Tag 1) |
+| Multi-node graph + wizard + confirm | 🔲 planned | Tag 2 |

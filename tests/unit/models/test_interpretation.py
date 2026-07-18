@@ -26,3 +26,17 @@ def test_interpretation_accepts_extracted_fields_dict():
     )
 
     assert interpretation.extracted_fields == {"Preço": 250000, "Estado": "Reservado"}
+
+
+def test_interpretation_defaults_intent_and_target_entity_to_none():
+    interpretation = Interpretation()
+
+    assert interpretation.intent is None
+    assert interpretation.target_entity is None
+
+
+def test_interpretation_allows_intent_without_a_resolved_target_entity():
+    interpretation = Interpretation(intent="read")
+
+    assert interpretation.intent == "read"
+    assert interpretation.target_entity is None
