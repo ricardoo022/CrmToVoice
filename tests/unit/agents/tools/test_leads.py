@@ -101,3 +101,59 @@ def test_delete_lead_rejects_non_string_record_id():
             leads.delete_lead.invoke({"record_id": 123})
 
     mock_fn.assert_not_called()
+
+
+# --- find_lead (composite tool) ---
+
+
+def test_find_lead_returns_full_record_with_visitas_when_found():
+    """find_lead should search, then get the full record including visitas."""
+    search_result = [{"id": "rec1", "fields": {"Nome": "João Silva"}}]
+    full_lead = {
+        "id": "rec1",
+        "fields": {"Nome": "João Silva", "Visitas": ["recV1"]},
+        "visitas": [{"id": "recV1", "fields": {"Título": "Visita 1"}}],
+    }
+
+    with (
+        patch.object(airtable_leads, "search_leads", return_value=search_result),
+        patch.object(airtable_leads, "get_lead", return_value=full_lead) as mock_get,
+    ):
+        result = leads.find_lead.invoke({"nome": "joão"})
+
+    mock_get.assert_called_once_with("rec1")
+    assert result["found"] is True
+    assert result["id"] == "rec1"
+    assert result["visitas"] == full_lead["visitas"]
+
+
+def test_find_lead_returns_not_found_when_search_empty():
+    """find_lead should return found=False when no match."""
+    with (
+        patch.object(airtable_leads, "search_leads", return_value=[]),
+        patch.object(airtable_leads, "get_lead") as mock_get,
+    ):
+        result = leads.find_lead.invoke({"nome": "ninguém"})
+
+    mock_get.assert_not_called()
+    assert result["found"] is False
+    assert result["lead"] is None
+    assert result["visitas"] == []
+
+
+def test_find_lead_uses_first_match_when_multiple_found():
+    """find_lead should use the first match when search returns multiple."""
+    search_result = [
+        {"id": "rec1", "fields": {"Nome": "João A"}},
+        {"id": "rec2", "fields": {"Nome": "João B"}},
+    ]
+    full_lead = {"id": "rec1", "fields": {"Nome": "João A"}, "visitas": []}
+
+    with (
+        patch.object(airtable_leads, "search_leads", return_value=search_result),
+        patch.object(airtable_leads, "get_lead", return_value=full_lead) as mock_get,
+    ):
+        result = leads.find_lead.invoke({"nome": "joão"})
+
+    mock_get.assert_called_once_with("rec1")
+    assert result["found"] is True

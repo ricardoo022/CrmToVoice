@@ -24,6 +24,22 @@ Design rationale:
   this is the one intentional cross-file dependency in the `models/`
   package, done specifically to prevent typo drift between `AgentState` and
   this schema (e.g. `"Read"` vs `"read"`).
+- `intent`/`target_entity` are `Optional`, default `None` — not because
+  they're ever meaningless when set, but to represent `Agent.md` §7's
+  "unrecognizable intent (noise, Siri misheard) → asks to repeat, doesn't
+  assume" fallback. Both being required `Literal`s would force the LLM to
+  always commit to one of the 4 actions, even for unintelligible input,
+  which is exactly the guessing §7 rules out. `None` on either is Router 2's
+  signal to skip dispatch and ask the person to repeat themselves, instead
+  of routing to one of the 4 paths.
+- `crm_context` is deliberately *not* a field here, even though
+  `interpret_speech` may call `search_leads`/`search_imoveis` while
+  producing this output. Per `Agent.md` §9, the node "folds any match into
+  `crm_context`" as a separate step from the structured output it
+  "returns" — `crm_context` on `AgentState` is populated by the router node
+  (from the agent's own tool-call results), not restated by the LLM inside
+  this schema. Asking the LLM to retype full Airtable records into a second
+  schema field would be redundant and lossy.
 """
 
 from typing import Any
@@ -36,6 +52,6 @@ from crmToVoice.models.state import Intent, TargetEntity
 class Interpretation(BaseModel):
     """One LLM call's structured interpretation of the user's speech."""
 
-    intent: Intent
-    target_entity: TargetEntity
+    intent: Intent | None = None
+    target_entity: TargetEntity | None = None
     extracted_fields: dict[str, Any] = Field(default_factory=dict)

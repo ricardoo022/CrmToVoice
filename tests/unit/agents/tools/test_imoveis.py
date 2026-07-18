@@ -73,3 +73,59 @@ def test_get_imovel_passes_through_record_with_empty_visitas():
     mock_fn.assert_called_once_with("rec1")
     assert result == mock_result
     assert result["visitas"] == []
+
+
+# --- find_imovel (composite tool) ---
+
+
+def test_find_imovel_returns_full_record_with_visitas_when_found():
+    """find_imovel should search, then get the full record including visitas."""
+    search_result = [{"id": "rec1", "fields": {"Morada": "Rua das Flores"}}]
+    full_imovel = {
+        "id": "rec1",
+        "fields": {"Morada": "Rua das Flores", "Visitas": ["recV1"]},
+        "visitas": [{"id": "recV1", "fields": {"Título": "Visita 1"}}],
+    }
+
+    with (
+        patch.object(airtable_imoveis, "search_imoveis", return_value=search_result),
+        patch.object(airtable_imoveis, "get_imovel", return_value=full_imovel) as mock_get,
+    ):
+        result = imoveis.find_imovel.invoke({"morada": "flores"})
+
+    mock_get.assert_called_once_with("rec1")
+    assert result["found"] is True
+    assert result["id"] == "rec1"
+    assert result["visitas"] == full_imovel["visitas"]
+
+
+def test_find_imovel_returns_not_found_when_search_empty():
+    """find_imovel should return found=False when no match."""
+    with (
+        patch.object(airtable_imoveis, "search_imoveis", return_value=[]),
+        patch.object(airtable_imoveis, "get_imovel") as mock_get,
+    ):
+        result = imoveis.find_imovel.invoke({"morada": "inexistente"})
+
+    mock_get.assert_not_called()
+    assert result["found"] is False
+    assert result["imovel"] is None
+    assert result["visitas"] == []
+
+
+def test_find_imovel_uses_first_match_when_multiple_found():
+    """find_imovel should use the first match when search returns multiple."""
+    search_result = [
+        {"id": "rec1", "fields": {"Morada": "Rua A"}},
+        {"id": "rec2", "fields": {"Morada": "Rua A Bis"}},
+    ]
+    full_imovel = {"id": "rec1", "fields": {"Morada": "Rua A"}, "visitas": []}
+
+    with (
+        patch.object(airtable_imoveis, "search_imoveis", return_value=search_result),
+        patch.object(airtable_imoveis, "get_imovel", return_value=full_imovel) as mock_get,
+    ):
+        result = imoveis.find_imovel.invoke({"morada": "rua"})
+
+    mock_get.assert_called_once_with("rec1")
+    assert result["found"] is True

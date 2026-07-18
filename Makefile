@@ -15,8 +15,8 @@ setup: ## Cria .venv e instala dependências
 
 ##@ Desenvolvimento
 
-dev: ## Inicia LangGraph Studio (desenvolvimento de agentes)
-	uv run langgraph dev
+dev: ## Inicia o webhook FastAPI (Tag 1)
+	uv run uvicorn crmToVoice.webhook:app --reload
 
 ##@ Qualidade
 
@@ -39,6 +39,11 @@ typecheck: ## Verifica tipos com pyright
 
 check: lint typecheck test ## Corre lint + typecheck + testes
 
+##@ Avaliação (LangSmith, precisa de credenciais reais)
+
+eval-all-tools: ## Corre os evaluators LangSmith do agente all-tools interpret_speech (US-T1-02)
+	uv run python scripts/eval_all_tools_agent.py
+
 ##@ Airtable (manual)
 
 airtable-add: ## Cria um Lead + Imóvel + Visita ligados entre si no Airtable, com todos os campos preenchidos
@@ -56,4 +61,4 @@ airtable-delete: ## Apaga um registo (TABLE=leads|imoveis|visitas ID=recXXXXXXXX
 clean: ## Remove o .venv
 	rm -rf .venv
 
-.PHONY: help setup dev test test-unit test-integration lint format typecheck check airtable-add airtable-delete clean
+.PHONY: help setup dev test test-unit test-integration lint format typecheck check eval-all-tools airtable-add airtable-delete clean

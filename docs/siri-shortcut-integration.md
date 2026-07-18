@@ -1,8 +1,9 @@
 # Siri Shortcut integration — how it actually works
 
 Plain factual reference for building the iPhone side of the flow described in
-`docs/Agent.md` (see §8 for the runtime decisions and the exact request
-`{session_id, text}` / response `{session_id, reply_text, done}` payload).
+`docs/Agent.md`. The webhook contract is `POST {session_id, text}` →
+`{session_id, reply_text, done}`. For Tag 1 (single-agent MVP), `done` is
+always `true` — the agent replies in one turn and the Shortcut ends.
 Facts below are sourced from Apple's own Shortcuts documentation and
 established community references (linked inline). Anything not confirmed by
 a source is marked **unconfirmed**.
@@ -86,7 +87,7 @@ Source: [Get Dictionary Value action – Apple Support](https://support.apple.co
 
 Source: [Apple Community – Speak Text / Wait Until Finished](https://discussions.apple.com/thread/250088842)
 
-## 6. The multi-turn loop (done == false)
+## 6. The multi-turn loop (done == false, Tag 2+)
 
 Shortcuts has **no native "repeat until condition" / "while" action**.
 The two built-in loop actions are:
@@ -110,7 +111,11 @@ This is a community-documented pattern, not an official Apple feature —
 expected (e.g. don't hit a recursion depth limit for a typical 2–4 turn
 wizard exchange).
 
-Source: [Use Repeat actions – Apple Support](https://support.apple.com/guide/shortcuts/use-repeat-actions-apdc11deb2c1/ios), [Repeat / Loop Until condition is met – Automators Talk](https://talk.automators.fm/t/repeat-loop-until-condition-is-met/3813)
+**Tag 1 note:** `done` is always `true`, so the multi-turn loop is not
+needed — the Shortcut runs the webhook once and ends. This section is
+preserved for Tag 2 when `interrupt()` and wizard confirmations are added.
+
+Source: [Use Repeat actions – Apple Support](https://apple.co/3R5XQnJ), [Repeat / Loop Until condition is met – Automators Talk](https://talk.automators.fm/t/repeat-loop-until-condition-is-met/3813)
 
 ## 7. Constraints relevant to this project
 
