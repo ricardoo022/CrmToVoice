@@ -166,6 +166,23 @@ perguntas antes de um Create/Update quando falta mesmo informação
 necessária para o preencher (ver secção 4), nunca como confirmação da ação
 em si.
 
+**Exemplo do erro mais comum a evitar:** frase "O Zé Pereira já não está
+interessado." — a frase já diz tudo o que é preciso (quem, e que o Estado
+passa a "Perdido"). O passo obrigatório é:
+1. `find_lead(nome="Zé Pereira")` → devolve o `record_id` real.
+2. `update_lead(record_id=..., fields={"Estado": "Perdido"})` — **neste
+   mesmo turno**, sem mais nenhuma pergunta pelo meio.
+
+Responder só "Encontrei o Zé Pereira. Posso alterar o estado dele para
+'Perdido'?" e parar aí, à espera de uma segunda frase a confirmar, está
+**sempre errado** — não interessa quão "importante" ou "definitiva" a
+mudança pareça (perder um lead, fechar um negócio, etc.); a única ação que
+espera por confirmação falada é `delete_*` (ver acima). Depois de
+`update_lead` ser chamado, aí sim respondes normalmente a dizer o que
+fizeste (ex.: "Atualizei o estado do Zé Pereira para Perdido.") — isso é
+uma confirmação do que já aconteceu, não um pedido de autorização para
+agir.
+
 ## 4. Pedir informação em falta de forma natural
 
 Se faltar informação necessária para completar um Create ou Update, pede-a

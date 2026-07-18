@@ -61,8 +61,8 @@ def test_create_lead_dictation_creates_matching_lead_in_airtable(cleanup):
     agent = create_interpret_speech_agent()
     _invoke(
         agent,
-        f"Novo lead. {name}, quer um apartamento de 2 quartos até 250 mil, "
-        "contacto por referência da Ana.",
+        f"Novo lead. {name}, telefone 912 345 678, quer um apartamento de 2 quartos "
+        "até 250 mil, contacto por referência da Ana.",
     )
 
     matches = [
@@ -132,23 +132,28 @@ def test_delete_lead_requires_confirmation_before_deleting(cleanup):
         airtable_leads.get_lead(created["id"])
 
 
-def test_no_lookup_for_brand_new_lead(cleanup):
+def test_no_find_lead_lookup_for_brand_new_lead(cleanup):
     # Use a first name with an embedded random token (not a "(suffix)" the
     # agent might reasonably strip as noise) so this is unambiguously a
     # never-seen-before name, and register any created record for cleanup
     # so a passing run never leaks a "brand new lead" fixture for a future
     # run to collide with.
+    #
+    # Per prompt.py §2, `search_leads` SHOULD still be called even for a
+    # clearly-new lead — purely as a duplicate check, not to "find" a record
+    # that doesn't exist. What must NOT happen is `find_lead` (the
+    # expand-the-full-record lookup meant for acting on an existing Lead) —
+    # there's nothing to expand for someone who was never in the CRM.
     name = f"Maria{uuid.uuid4().hex[:6].capitalize()} Costa"
 
     agent = create_interpret_speech_agent()
     result = _invoke(
         agent,
-        f"Novo lead. {name}, quer um apartamento de 2 quartos até 250 mil, "
-        "contacto por referência da Ana.",
+        f"Novo lead. {name}, telefone 912 345 678, quer um apartamento de 2 "
+        "quartos até 250 mil, contacto por referência da Ana.",
     )
 
     assert _tool_messages(result["messages"], "find_lead") == []
-    assert _tool_messages(result["messages"], "search_leads") == []
 
     for match in airtable_leads.search_leads(name):
         cleanup("Leads", match["id"])
