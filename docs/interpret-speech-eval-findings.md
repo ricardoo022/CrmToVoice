@@ -47,11 +47,14 @@ no longer flakes CI, but it's still open here as a real quality gap.
 evaluators remain the way to track whether it's actually improving.
 Gap #2 (search-before-create) is still open, untouched.
 
-Worth considering next: pinning a lower `temperature` on `get_chat_model()`
-(`config.py`) — currently unset (provider default) — since a CRM write
-agent probably wants more deterministic behavior than default chat-tuned
-sampling gives; not done yet, no data on whether it'd actually help these
-two specific gaps.
+**Update since:** pinned `temperature=0` on `get_chat_model()` (`config.py`)
+— a CRM write agent should follow explicit rules consistently rather than
+sample creatively. Ran the update test 5/5 and the create tests 3/3 in
+isolation, plus the full `tests/integration` suite twice, all green — a
+real improvement over the ~1-in-5-6 flake rate at default temperature.
+Doesn't provably guarantee 100% (tool-calling models can still vary run to
+run even at temperature 0, depending on provider), but meaningfully better.
+Re-run `make eval-all-tools` periodically to keep tracking both gaps.
 
 ## Known risks (pre-run)
 
