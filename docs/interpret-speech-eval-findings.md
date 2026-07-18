@@ -33,9 +33,25 @@ unclear passed both times. Two real, reproducible gaps found:
    under-specified eval example, since fixed). Run 2, with a fully-specified
    utterance, skipped `search_leads` entirely and created directly.
 
-Neither has been fixed yet — both are open, tracked here, not yet turned
-into a prompt change. Re-run `make eval-all-tools` after any prompt edit
-aimed at these to confirm.
+**Update since:** added a worked negative example to prompt.py §3 (same
+pattern as the existing `record_id`-hallucination fix in §1.3), directly
+targeting gap #1. Improved the rate noticeably (stable across several
+isolated runs) but did **not** eliminate it — a full `tests/integration`
+run still hit it once in ~6 runs. This is a live, non-deterministic LLM
+call; a prompt example alone won't get to 100%. `tests/integration`'s
+`test_update_utterance_changes_lead_status_in_airtable` was hardened to
+assert the end state (Estado actually changes) rather than "no confirmation
+question ever," with a fallback turn if the agent does ask — so this gap
+no longer flakes CI, but it's still open here as a real quality gap.
+`scripts/eval_all_tools_agent.py`'s `tool_usage_correct`/`delete_confirmation_required`
+evaluators remain the way to track whether it's actually improving.
+Gap #2 (search-before-create) is still open, untouched.
+
+Worth considering next: pinning a lower `temperature` on `get_chat_model()`
+(`config.py`) — currently unset (provider default) — since a CRM write
+agent probably wants more deterministic behavior than default chat-tuned
+sampling gives; not done yet, no data on whether it'd actually help these
+two specific gaps.
 
 ## Known risks (pre-run)
 
